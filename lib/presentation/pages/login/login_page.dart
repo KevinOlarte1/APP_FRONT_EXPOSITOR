@@ -1,11 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 import 'package:expositor_app/core/constants/app_colors.dart';
+
 import 'widgets/auth_card.dart';
 import 'widgets/auth_header.dart';
 import 'widgets/auth_text_field.dart';
 import 'widgets/auth_button.dart';
+
 import 'recover_password_page.dart';
+
+import 'package:expositor_app/data/dto/login_request.dart';
+import 'package:expositor_app/data/services/auth_service.dart';
+import 'package:expositor_app/data/services/vendedor_service.dart';
+
+import '../home/home_admin_page.dart';
+import '../home/home_user_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -17,7 +27,56 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+  final AuthService _authService = AuthService();
+  final VendedorService _vendedorService = VendedorService();
   bool _obscure = true;
+  bool _isLoading = false;
+
+  Future<void> _login() async {
+    setState(() => _isLoading = true);
+
+    final loginRequest = LoginRequest(
+      email: emailController.text.trim(),
+      password: passwordController.text.trim(),
+    );
+
+    final response = await _authService.login(loginRequest);
+
+    setState(() => _isLoading = false);
+
+    if (response != null && context.mounted) {
+      // ✅ Obtener datos del vendedor
+      final vendedor = await _vendedorService.getMe();
+      if (vendedor == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error al obtener perfil')),
+        );
+        return;
+      }
+
+      if (vendedor.role.contains("ADMIN")) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                HomeAdminPage(nombre: vendedor.nombre, email: vendedor.email),
+          ),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                HomeUserPage(nombre: vendedor.nombre, email: vendedor.email),
+          ),
+        );
+      }
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Credenciales inválidas')));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -79,7 +138,7 @@ class _LoginPageState extends State<LoginPage> {
             ),
             const SizedBox(height: 8),
 
-            AuthButton(text: 'Iniciar sesión', onPressed: () {}),
+            AuthButton(text: 'Iniciar sesión', onPressed: _login),
           ],
         ),
       ),

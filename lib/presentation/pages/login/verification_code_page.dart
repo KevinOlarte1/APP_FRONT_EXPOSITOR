@@ -1,3 +1,4 @@
+import 'package:expositor_app/data/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:expositor_app/core/constants/app_colors.dart';
 import 'widgets/auth_card.dart';
@@ -7,11 +8,34 @@ import 'widgets/auth_button.dart';
 import 'change_password_page.dart';
 
 class VerificationCodePage extends StatelessWidget {
-  const VerificationCodePage({super.key});
+  final String email;
+
+  const VerificationCodePage({super.key, required this.email});
 
   @override
   Widget build(BuildContext context) {
     final codeController = TextEditingController();
+    final _authService = AuthService();
+
+    void _onSendCode() {
+      final code = codeController.text.trim();
+
+      if (code.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Por favor codigo valido')),
+        );
+        return;
+      }
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              ChangePasswordPage(codeVerification: code, email: email),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.WHITE_BACKGROUND2,
       body: AuthCard(
@@ -29,15 +53,7 @@ class VerificationCodePage extends StatelessWidget {
               label: 'Código de verificación',
             ),
             const SizedBox(height: 16),
-            AuthButton(
-              text: 'Verificar',
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ChangePasswordPage()),
-                );
-              },
-            ),
+            AuthButton(text: 'Verificar', onPressed: _onSendCode),
           ],
         ),
       ),

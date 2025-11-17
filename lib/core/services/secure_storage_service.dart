@@ -13,11 +13,11 @@ class SecureStorageService {
     await _storage.write(key: _keyRefreshToken, value: refreshToken);
   }
 
+
   //Obtener tokens
   Future<String?> getAccessToken() async {
     return await _storage.read(key: _keyAccessToken);
   }
-
   Future<String?> getRefreshToken() async {
     return await _storage.read(key: _keyRefreshToken);
   }

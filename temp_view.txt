@@ -1,0 +1,163 @@
+﻿import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+class CustomAppBar extends StatelessWidget {
+  final String name;
+  final String avatarUrl;
+
+  const CustomAppBar({super.key, required this.name, required this.avatarUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return MediaQuery.removePadding(
+      context: context,
+      removeRight: true,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
+
+          // Breakpoints
+          const double mobileMax = 600;
+          const double tabletMax = 1024;
+
+          final bool isMobile = width < mobileMax;
+          final bool isTablet = width >= mobileMax && width < tabletMax;
+          final bool isDesktop = width >= tabletMax;
+
+          // Responsive metrics
+          final double horizontalPadding = isMobile
+              ? 16
+              : isTablet
+              ? 24
+              : 32;
+          final double verticalPadding = isMobile
+              ? 10
+              : isTablet
+              ? 12
+              : 14;
+          final double avatarRadius = isMobile
+              ? 16
+              : isTablet
+              ? 20
+              : 24;
+          final double spacing = isMobile
+              ? 8
+              : isTablet
+              ? 12
+              : 16;
+          final double greetingFontSize = isMobile
+              ? 12
+              : isTablet
+              ? 13
+              : 14;
+          final double nameFontSize = isMobile
+              ? 16
+              : isTablet
+              ? 18
+              : 20;
+          final double iconSize = isMobile
+              ? 22
+              : isTablet
+              ? 26
+              : 28;
+          final bool showGreeting =
+              width >= 380; // Oculta "Hola" en pantallas muy angostas
+
+          final String initials = _initialsFromName(name);
+          final bool hasAvatar = avatarUrl.trim().isNotEmpty;
+
+          return Container(
+            width: double.infinity,
+            padding: EdgeInsets.only(
+              left: horizontalPadding,
+              right: 0,
+              top: verticalPadding,
+              bottom: verticalPadding,
+            ),
+            decoration: const BoxDecoration(color: Color(0xFF2b2b2b)),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              mainAxisSize: MainAxisSize.max,
+              children: [
+                // Avatar
+                CircleAvatar(
+                  radius: avatarRadius,
+                  backgroundColor: Colors.grey.shade700,
+                  backgroundImage: hasAvatar ? NetworkImage(avatarUrl) : null,
+                  child: hasAvatar
+                      ? null
+                      : Text(
+                          initials,
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: nameFontSize - 4,
+                          ),
+                        ),
+                ),
+
+                SizedBox(width: spacing),
+
+                // Nombre y textos
+                Flexible(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (showGreeting)
+                        Text(
+                          'Hola',
+                          style: GoogleFonts.poppins(
+                            fontSize: greetingFontSize,
+                            color: const Color.fromARGB(179, 139, 1, 1),
+                          ),
+                        ),
+                      Text(
+                        name,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          fontSize: nameFontSize,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const Spacer(),
+
+                // Ãcono de notificaciones (alineado al borde derecho)
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  icon: Icon(
+                    Icons.notifications,
+                    color: Colors.white,
+                    size: iconSize,
+                  ),
+                  onPressed: () {},
+                  tooltip: 'Notificaciones',
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  String _initialsFromName(String fullName) {
+    final parts = fullName
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
+    if (parts.isEmpty) return '?';
+    final first = parts[0];
+    final second = parts.length > 1 ? parts[1] : '';
+    final i1 = first.isNotEmpty ? first.substring(0, 1).toUpperCase() : '';
+    final i2 = second.isNotEmpty ? second.substring(0, 1).toUpperCase() : '';
+    return (i1 + i2).trim();
+  }
+}
