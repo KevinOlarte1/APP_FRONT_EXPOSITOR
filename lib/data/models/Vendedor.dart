@@ -1,18 +1,17 @@
 class Vendedor {
   final int id;
   final String nombre;
+  final String apellido;
   final String email;
   final String role;
   String urlAvatar = "https://cdn.pfps.gg/pfps/2903-default-blue.png";
 
-  Map<String, int> ventasPorCategoria;
-
   Vendedor({
     required this.id,
     required this.nombre,
+    required this.apellido,
     required this.email,
     required this.role,
-    required this.ventasPorCategoria,
   });
 
   /// Crea un Vendedor desde un JSON de la API
@@ -28,10 +27,9 @@ class Vendedor {
           ? json['id']
           : int.tryParse("${json['id']}") ?? 0,
       nombre: json['nombre']?.toString() ?? '',
+      apellido: json['apellido']?.toString() ?? '',
       email: json['email']?.toString() ?? '',
       role: cleanedRole,
-
-      ventasPorCategoria: {"COLLAR": 12, "PULSERA": 8, "ANILLO": 5},
     );
   }
 

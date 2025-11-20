@@ -1,27 +1,61 @@
-import 'package:expositor_app/core/constants/app_colors.dart';
 import 'package:expositor_app/data/models/vendedor.dart';
+import 'package:expositor_app/data/services/vendedor_service.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
 
-class VendorCard extends StatelessWidget {
+class VendorCard extends StatefulWidget {
   final Vendedor vendedor;
   final Function() onTap;
 
   const VendorCard({super.key, required this.vendedor, required this.onTap});
 
   @override
-  Widget build(BuildContext context) {
-    // -----------------------------------------
-    // Mapa temporal (hasta conectar con la API)
-    // -----------------------------------------
-    final Map<String, int> pedidos = {"abierto": 2, "cerrado": 3};
+  State<VendorCard> createState() => _VendorCardState();
+}
 
-    final int abiertos = pedidos["abierto"] ?? 0;
-    final int cerrados = pedidos["cerrado"] ?? 0;
+class _VendorCardState extends State<VendorCard> {
+  final VendedorService vendedorService = VendedorService();
+  late Future<Map<String, int>> futurePedidos;
+
+  @override
+  void initState() {
+    super.initState();
+    // Cargar pedidos del vendedor cuando la tarjeta se construye
+    futurePedidos = vendedorService.getNumPedidos(widget.vendedor.id);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Map<String, int>>(
+      future: futurePedidos,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return _buildLoadingCard();
+        }
+
+        if (snapshot.hasError) {
+          return _buildErrorCard(snapshot.error.toString());
+        }
+
+        final pedidos = snapshot.data ?? {};
+        final int abiertos = pedidos["abierrtos"] ?? 0;
+        final int cerrados = pedidos["cerrados"] ?? 0;
+
+        return _buildCard(abiertos, cerrados);
+      },
+    );
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // 🔵 TARJETA PRINCIPAL
+  //////////////////////////////////////////////////////////////////////////////
+
+  Widget _buildCard(int abiertos, int cerrados) {
+    final vendedor = widget.vendedor;
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: widget.onTap,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 10),
         padding: const EdgeInsets.all(16),
@@ -39,9 +73,9 @@ class VendorCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // -----------------------------------------
+            // -------------------------------------------------------------
             // Avatar + nombre + email
-            // -----------------------------------------
+            // -------------------------------------------------------------
             Row(
               children: [
                 CircleAvatar(
@@ -75,9 +109,9 @@ class VendorCard extends StatelessWidget {
 
             const SizedBox(height: 20),
 
-            // -----------------------------------------
-            // Donut (abierto vs cerrado)
-            // -----------------------------------------
+            // -------------------------------------------------------------
+            // Donut Chart
+            // -------------------------------------------------------------
             Row(
               children: [
                 SizedBox(
@@ -107,9 +141,9 @@ class VendorCard extends StatelessWidget {
 
                 const SizedBox(width: 20),
 
-                // -----------------------------------------
+                // -------------------------------------------------------------
                 // Leyenda
-                // -----------------------------------------
+                // -------------------------------------------------------------
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -135,7 +169,56 @@ class VendorCard extends StatelessWidget {
       ),
     );
   }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // 🟡 TARJETA DE CARGA
+  //////////////////////////////////////////////////////////////////////////////
+
+  Widget _buildLoadingCard() {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+            color: Colors.black.withOpacity(0.08),
+          ),
+        ],
+      ),
+      child: const Center(child: CircularProgressIndicator()),
+    );
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // 🔴 TARJETA DE ERROR
+  //////////////////////////////////////////////////////////////////////////////
+
+  Widget _buildErrorCard(String message) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(
+        "Error: $message",
+        style: GoogleFonts.poppins(
+          color: Colors.red,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
 }
+
+//////////////////////////////////////////////////////////////////////////////
+// 🔹 WIDGET LEYENDA
+//////////////////////////////////////////////////////////////////////////////
 
 class _LegendItem extends StatelessWidget {
   final Color color;

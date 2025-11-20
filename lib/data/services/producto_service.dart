@@ -38,12 +38,11 @@ class ProductoService {
     }
   }
 
-  Future<bool> createProducto(Producto? producto) async {
+  Future<bool> createProducto(Producto producto) async {
     final url = Uri.parse(ApiConstants.products);
     final token = await _storage.getAccessToken();
     if (token == null) return false;
     try {
-      if (producto == null) return false;
       final body = {
         "descripcion": producto.descripcion,
         "precio": producto.precio,
@@ -62,6 +61,40 @@ class ProductoService {
         return true;
       } else {
         print("❌ Error al crear producto: ${response.statusCode}");
+        print(response.body);
+        return false;
+      }
+    } catch (e) {
+      print("⚠️ Error de conexión al crear producto: $e");
+
+      return false;
+    }
+  }
+
+  Future<bool> updateProducto(Producto producto) async {
+    try {
+      final url = Uri.parse("${ApiConstants.products}/${producto.id}/update");
+      final token = await _storage.getAccessToken();
+      if (token == null) return false;
+
+      final body = {
+        "descripcion": producto.descripcion,
+        "precio": producto.precio,
+        "categoria": producto.categoria.nameValue,
+      };
+      final response = await http.put(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(body),
+      );
+      if (response.statusCode == 200) {
+        print("✅ Producto actualizado correctamente");
+        return true;
+      } else {
+        print("❌ Error al actualizar producto: ${response.statusCode}");
         print(response.body);
         return false;
       }

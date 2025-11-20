@@ -1,8 +1,10 @@
+import 'dart:collection';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:expositor_app/core/constants/api_constants.dart';
 import 'package:expositor_app/core/services/secure_storage_service.dart';
 import 'package:expositor_app/data/models/vendedor.dart';
+import 'package:expositor_app/data/models/stats/ingreso_cliente.dart';
 
 class VendedorService {
   final SecureStorageService _storage = SecureStorageService();
@@ -32,6 +34,140 @@ class VendedorService {
     } catch (e) {
       print("⚠️ Error al obtener vendedor: $e");
       return null;
+    }
+  }
+
+  Future<List<Vendedor>> getVendedores() async {
+    final token = await _storage.getAccessToken();
+    if (token == null) return [];
+
+    final url = Uri.parse(ApiConstants.vendedor);
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $token",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> jsonList = jsonDecode(response.body);
+
+        return jsonList.map((json) {
+          return Vendedor.fromJson(json);
+        }).toList();
+      } else {
+        print("❌ Error al obtener vendedores: ${response.statusCode}");
+        print(response.body);
+        return [];
+      }
+    } catch (e) {
+      print("⚠️ Error de conexión al obtener vendedores: $e");
+      return [];
+    }
+  }
+
+  Future<Map<String, int>> getNumPedidos(int idVendedor) async {
+    final token = await _storage.getAccessToken();
+    if (token == null) return new HashMap();
+    try {
+      final response = await http.get(
+        Uri.parse("${ApiConstants.vendedor}/$idVendedor/stats/numPedido"),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+
+        // Convertimos los valores dinámicos a enteros
+        return data.map((key, value) => MapEntry(key, value as int));
+      } else {
+        print("Error al obtener numPedidos: ${response.statusCode}");
+        return new HashMap();
+      }
+    } catch (e) {
+      print("⚠️ Error al obtener numPedidos: $e");
+      return new HashMap();
+    }
+  }
+
+  // ----------------------------------------------------------------------
+  //  OBTENER VENTAS POR CATEGORÍA (Map<String, int>)
+  // ----------------------------------------------------------------------
+  Future<Map<String, int>> getStatsProductsByCategory(int idVendedor) async {
+    print("Holaa");
+    final token = await _storage.getAccessToken();
+    if (token == null) return {};
+
+    final String url =
+        "${ApiConstants.vendedor}/$idVendedor/stats/numProductsCategoria";
+
+    try {
+      print("llega");
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+      print("------");
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+
+        // Convertir dinámicos a int
+        final Map<String, int> result = data.map(
+          (key, value) => MapEntry(
+            key,
+            (value as num).toInt(), // por si viene como long
+          ),
+        );
+
+        return result;
+      } else {
+        throw Exception("Error ${response.statusCode}: ${response.body}");
+      }
+    } catch (e) {
+      throw Exception("Error al obtener categorías: $e");
+    }
+  }
+
+  // ----------------------------------------------------------------------
+  //  OBTENER ingresos anual de un vendedor (Map<String, int>)
+  // ----------------------------------------------------------------------
+  // ----------------------------------------------------------------------
+  //  OBTENER GASTOS POR CLIENTE (List<IngresoCliente>)
+  // ----------------------------------------------------------------------
+  Future<List<IngresoCliente>> getIngresoAnualByCliente(int idVendedor) async {
+    final token = await _storage.getAccessToken();
+    if (token == null) return [];
+
+    final String url =
+        "${ApiConstants.vendedor}/$idVendedor/stats/gastoPorCliente";
+
+    try {
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+
+        return data.map((e) => IngresoCliente.fromJson(e)).toList();
+      } else {
+        throw Exception("Error ${response.statusCode}: ${response.body}");
+      }
+    } catch (e) {
+      throw Exception("Error al obtener gasto por cliente: $e");
     }
   }
 }

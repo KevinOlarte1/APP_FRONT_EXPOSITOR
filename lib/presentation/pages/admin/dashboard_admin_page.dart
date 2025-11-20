@@ -1,44 +1,47 @@
+import 'package:expositor_app/data/services/vendedor_service.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:expositor_app/data/models/vendedor.dart';
 import 'package:expositor_app/presentation/widget/cards/vendor_card.dart';
-import 'package:expositor_app/data/models/vendedor.dart';
 import 'package:expositor_app/presentation/pages/admin/vendedor_admin_page.dart';
 
-class VendedoresDashboardPage extends StatelessWidget {
-  VendedoresDashboardPage({super.key});
+class VendedoresDashboardPage extends StatefulWidget {
+  const VendedoresDashboardPage({super.key});
 
-  final List<Vendedor> vendedoresFake = [
-    Vendedor(
-      id: 1,
-      nombre: "Ana García",
-      email: "ana@ventas.com",
-      role: "USER",
-      ventasPorCategoria: {"COLLAR": 15, "PULSERA": 20, "ANILLO": 5},
-    ),
-    Vendedor(
-      id: 2,
-      nombre: "Carlos Ruiz",
-      email: "carlos@ventas.com",
-      role: "USER",
-      ventasPorCategoria: {"COLLAR": 10, "PULSERA": 5, "ANILLO": 14},
-    ),
-    Vendedor(
-      id: 3,
-      nombre: "Laura Torres",
-      email: "laura@ventas.com",
-      role: "USER",
-      ventasPorCategoria: {"COLLAR": 20, "PULSERA": 10, "ANILLO": 8},
-    ),
-  ];
+  @override
+  State<VendedoresDashboardPage> createState() =>
+      _VendedoresDashboardPageState();
+}
+
+class _VendedoresDashboardPageState extends State<VendedoresDashboardPage> {
+  final VendedorService _service = VendedorService();
+
+  List<Vendedor> vendedores = [];
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVendedores();
+  }
+
+  Future<void> _loadVendedores() async {
+    final lista = await _service.getVendedores();
+
+    setState(() {
+      if (lista.isNotEmpty) {
+        vendedores = lista;
+      } else {
+        vendedores = new List.empty(); // fallback
+      }
+      loading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Detectamos si es PC/portátil
-        bool isDesktop = constraints.maxWidth >= 700;
-
         return Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
@@ -54,36 +57,36 @@ class VendedoresDashboardPage extends StatelessWidget {
 
               const SizedBox(height: 20),
 
-              // GRID RESPONSIVE
-              Expanded(
-                child: GridView.builder(
-                  itemCount: vendedoresFake.length,
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: _getCrossAxisCount(constraints.maxWidth),
-                    crossAxisSpacing: 20,
-                    mainAxisSpacing: 20,
-                    childAspectRatio:
-                        1.1, // Ajusta si quieres hacerlas más compactas
+              if (loading)
+                const Expanded(
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else
+                Expanded(
+                  child: GridView.builder(
+                    itemCount: vendedores.length,
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: _getCrossAxisCount(constraints.maxWidth),
+                      crossAxisSpacing: 20,
+                      mainAxisSpacing: 20,
+                      childAspectRatio: 1.1,
+                    ),
+                    itemBuilder: (context, index) {
+                      final v = vendedores[index];
+                      return VendorCard(
+                        vendedor: v,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => VendedorDetailPage(vendedor: v),
+                            ),
+                          );
+                        },
+                      );
+                    },
                   ),
-
-                  itemBuilder: (context, index) {
-                    final v = vendedoresFake[index];
-                    return VendorCard(
-                      vendedor: v,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => VendedorDetailPage(vendedor: v),
-                          ),
-                        );
-
-                        // TODO: VendorDetailPage
-                      },
-                    );
-                  },
                 ),
-              ),
             ],
           ),
         );
@@ -92,9 +95,9 @@ class VendedoresDashboardPage extends StatelessWidget {
   }
 
   int _getCrossAxisCount(double width) {
-    if (width < 690) return 1; // 📱 MÓVIL
-    if (width < 1100) return 2; // 📱📲 TABLET
-    if (width < 1500) return 3; // 🖥️ PC Estándar
-    return 4; // 🖥️🖥️ Monitores grandes
+    if (width < 690) return 1; // Móvil
+    if (width < 1100) return 2; // Tablet
+    if (width < 1500) return 3; // PC estándar
+    return 4; // Pantallas grandes
   }
 }

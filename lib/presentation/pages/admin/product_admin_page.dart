@@ -86,13 +86,16 @@ class _ProductAdminPageState extends State<ProductAdminPage> {
         }
       } else {
         // EDITAR
-        setState(() {
-          final index = _all.indexWhere((p) => p.id == producto.id);
-          if (index != -1) {
-            _all[index] = result;
-            _filtered = List.of(_all);
-          }
-        });
+        final ok = await ProductoService().updateProducto(result);
+        if (ok) {
+          setState(() {
+            final index = _all.indexWhere((p) => p.id == producto.id);
+            if (index != -1) {
+              _all[index] = result;
+              _filtered = List.of(_all);
+            }
+          });
+        }
       }
     }
   }
