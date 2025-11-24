@@ -1,15 +1,16 @@
+import 'package:expositor_app/data/models/vendedor.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:expositor_app/presentation/widget/custom_app_bar.dart';
 import 'package:expositor_app/presentation/widget/custom_footer.dart';
 import 'package:expositor_app/presentation/pages/admin/product_admin_page.dart';
 import 'package:expositor_app/presentation/pages/admin/dashboard_admin_page.dart';
+import 'package:expositor_app/presentation/pages/admin/config_vendedor_admin_page.dart';
 
 class HomeAdminPage extends StatefulWidget {
-  final String nombre;
-  final String email;
+  final Vendedor vendedorActual;
 
-  const HomeAdminPage({super.key, required this.nombre, required this.email});
+  const HomeAdminPage({super.key, required this.vendedorActual});
 
   @override
   State<HomeAdminPage> createState() => _HomeAdminPageState();
@@ -26,12 +27,7 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
     _pages.addAll([
       VendedoresDashboardPage(),
       ProductAdminPage(),
-      Center(
-        child: Text(
-          'Configuración del sistema',
-          style: GoogleFonts.poppins(fontSize: 18),
-        ),
-      ),
+      ConfigVendedorPage(vendedorActual: widget.vendedorActual),
     ]);
   }
 
@@ -46,7 +42,10 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(70),
         child: CustomAppBar(
-          name: widget.nombre,
+          name:
+              widget.vendedorActual.nombre +
+              " " +
+              widget.vendedorActual.apellido,
           avatarUrl: 'https://cdn.pfps.gg/pfps/2903-default-blue.png',
         ),
       ),

@@ -43,11 +43,7 @@ class ProductoService {
     final token = await _storage.getAccessToken();
     if (token == null) return false;
     try {
-      final body = {
-        "descripcion": producto.descripcion,
-        "precio": producto.precio,
-        "categoria": producto.categoria.nameValue,
-      };
+      final body = producto.toJson(); //TODO: MIRAR SI ESTO ETA BIEN
       final response = await http.post(
         url,
         headers: {
@@ -77,11 +73,7 @@ class ProductoService {
       final token = await _storage.getAccessToken();
       if (token == null) return false;
 
-      final body = {
-        "descripcion": producto.descripcion,
-        "precio": producto.precio,
-        "categoria": producto.categoria.nameValue,
-      };
+      final body = producto.toJson();
       final response = await http.put(
         url,
         headers: {

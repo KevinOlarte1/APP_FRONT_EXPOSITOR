@@ -114,7 +114,7 @@ class _ProductAdminPageState extends State<ProductAdminPage> {
           Row(
             children: [
               Text(
-                "Lotes de Stock",
+                "Productos",
                 style: GoogleFonts.poppins(
                   fontSize: 26,
                   fontWeight: FontWeight.bold,
@@ -173,7 +173,7 @@ class _ProductAdminPageState extends State<ProductAdminPage> {
               children: const [
                 _HeaderCell("ID", flex: 1),
                 _HeaderCell("NOMBRE", flex: 4),
-                _HeaderCell("COSTE UNITARIO", flex: 3),
+                _HeaderCell("PRECIO UNITARIO", flex: 3),
                 _HeaderCell("CATEGORÍA", flex: 3),
               ],
             ),

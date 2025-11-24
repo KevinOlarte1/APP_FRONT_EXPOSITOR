@@ -88,8 +88,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(
-              builder: (_) =>
-                  HomeAdminPage(nombre: vendedor.nombre, email: vendedor.email),
+              builder: (_) => HomeAdminPage(vendedorActual: vendedor),
             ),
             (route) => false,
           );
@@ -97,8 +96,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(
-              builder: (_) =>
-                  HomeUserPage(nombre: vendedor.nombre, email: vendedor.email),
+              builder: (_) => HomeUserPage(vendedorActual: vendedor),
             ),
             (route) => false,
           );

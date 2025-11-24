@@ -4,13 +4,15 @@ class Producto {
   int id;
   String descripcion;
   double precio;
-  CategoriaProducto categoria;
+  int categoriaId;
+  String? categoria;
 
   Producto({
     required this.id,
     required this.descripcion,
     required this.precio,
-    required this.categoria,
+    required this.categoriaId,
+    this.categoria,
   });
 
   factory Producto.fromJson(Map<String, dynamic> json) {
@@ -18,7 +20,8 @@ class Producto {
       id: json['id'],
       descripcion: json['descripcion'],
       precio: (json['precio'] as num).toDouble(),
-      categoria: CategoriaProductoExt.fromString(json['categoria']),
+      categoriaId: json['idCategoria'],
+      categoria: json['categoria'],
     );
   }
 
@@ -27,7 +30,7 @@ class Producto {
       'id': id,
       'descripcion': descripcion,
       'precio': precio,
-      'categoria': categoria.nameValue,
+      'idCategoria': categoriaId,
     };
   }
 }

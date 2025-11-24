@@ -19,15 +19,9 @@ void main() async {
 
     if (vendedor != null) {
       if (vendedor.role.toUpperCase().contains("ADMIN")) {
-        initialPage = HomeAdminPage(
-          nombre: vendedor.nombre,
-          email: vendedor.email,
-        );
+        initialPage = HomeAdminPage(vendedorActual: vendedor);
       } else {
-        initialPage = HomeUserPage(
-          nombre: vendedor.nombre,
-          email: vendedor.email,
-        );
+        initialPage = HomeUserPage(vendedorActual: vendedor);
       }
     } else {
       // Token inválido o expirado → limpiamos

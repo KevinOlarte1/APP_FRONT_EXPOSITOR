@@ -32,7 +32,7 @@ class _VendedoresDashboardPageState extends State<VendedoresDashboardPage> {
       if (lista.isNotEmpty) {
         vendedores = lista;
       } else {
-        vendedores = new List.empty(); // fallback
+        vendedores = List.empty(); // fallback
       }
       loading = false;
     });

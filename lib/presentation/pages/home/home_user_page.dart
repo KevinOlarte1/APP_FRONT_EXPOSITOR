@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:expositor_app/data/models/vendedor.dart';
 
 class HomeUserPage extends StatelessWidget {
-  final String nombre;
-  final String email;
+  final Vendedor vendedorActual;
 
-  const HomeUserPage({super.key, required this.nombre, required this.email});
+  const HomeUserPage({super.key, required this.vendedorActual});
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +17,7 @@ class HomeUserPage extends StatelessWidget {
       ),
       body: Center(
         child: Text(
-          "🙋 Bienvenido $nombre\n$email",
+          "🙋 Bienvenido ${vendedorActual.nombre}\n${vendedorActual.email}",
           textAlign: TextAlign.center,
           style: GoogleFonts.poppins(fontSize: 18),
         ),

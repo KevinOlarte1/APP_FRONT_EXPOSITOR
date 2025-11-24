@@ -5,4 +5,5 @@ class ApiConstants {
   static const String auth = "$baseUrl/auth";
   static const String vendedor = "$baseUrl/vendedor";
   static const String products = "$baseUrl/producto";
+  static const String categorias = "$baseUrl/categoria";
 }

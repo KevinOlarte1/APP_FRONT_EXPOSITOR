@@ -58,16 +58,14 @@ class _LoginPageState extends State<LoginPage> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) =>
-                HomeAdminPage(nombre: vendedor.nombre, email: vendedor.email),
+            builder: (_) => HomeAdminPage(vendedorActual: vendedor),
           ),
         );
       } else {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) =>
-                HomeUserPage(nombre: vendedor.nombre, email: vendedor.email),
+            builder: (_) => HomeUserPage(vendedorActual: vendedor),
           ),
         );
       }

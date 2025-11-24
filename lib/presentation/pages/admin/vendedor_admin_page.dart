@@ -133,7 +133,7 @@ class _VendedorDetailPageState extends State<VendedorDetailPage> {
             // TARJETA: Gastos por Cliente
             // -------------------------------
             _SectionCard(
-              title: "Gastos por cliente",
+              title: "Ventas por cliente",
               subtitle: "Importe total facturado por cliente",
               child: FutureBuilder<List<IngresoCliente>>(
                 future: futureGastosPorCliente,
@@ -522,6 +522,17 @@ class _VendedorDetailPageState extends State<VendedorDetailPage> {
       default:
         return Colors.grey.shade400;
     }
+  }
+
+  Color _dynamicCategoryColor(String category) {
+    final hash = category.hashCode;
+
+    // generar color a partir del hash
+    final r = (hash & 0xFF0000) >> 16;
+    final g = (hash & 0x00FF00) >> 8;
+    final b = (hash & 0x0000FF);
+
+    return Color.fromARGB(255, r, g, b).withOpacity(0.85);
   }
 
   // ------------------------------------------------------------------

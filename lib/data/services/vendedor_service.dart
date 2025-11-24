@@ -170,4 +170,44 @@ class VendedorService {
       throw Exception("Error al obtener gasto por cliente: $e");
     }
   }
+
+  Future<bool> updateVendedor(Vendedor vendedor, {String? password}) async {
+    final token = await _storage.getAccessToken();
+    if (token == null) return false;
+
+    final url = "${ApiConstants.vendedor}/${vendedor.id}";
+
+    // Construimos el DTO según el backend
+    final Map<String, dynamic> body = {
+      "nombre": vendedor.nombre,
+      "apellido": vendedor.apellido,
+      "email": vendedor.email,
+    };
+
+    // Si password no es null, lo enviamos
+    if (password != null && password.trim().isNotEmpty) {
+      body["password"] = password;
+    }
+
+    try {
+      final response = await http.put(
+        Uri.parse(url),
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+        body: jsonEncode(body),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        return true;
+      } else {
+        print("Error actualizando vendedor: ${response.body}");
+        return false;
+      }
+    } catch (e) {
+      print("Excepción en updateVendedor: $e");
+      return false;
+    }
+  }
 }
