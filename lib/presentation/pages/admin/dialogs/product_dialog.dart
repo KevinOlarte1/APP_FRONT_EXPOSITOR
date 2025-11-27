@@ -93,7 +93,7 @@ class _ProductDialogState extends State<ProductDialog> {
                     controller: precioCtrl,
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
-                      labelText: "Coste",
+                      labelText: "PvP",
                       labelStyle: GoogleFonts.poppins(),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),

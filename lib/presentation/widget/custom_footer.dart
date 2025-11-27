@@ -72,10 +72,11 @@ class CustomFooter extends StatelessWidget {
             buildSection(icon: Icons.home, label: "Inicio", index: 0),
             _buildDivider(screenHeight),
             buildSection(
-              icon: Icons.shopping_bag,
-              label: "Productos",
+              icon: Icons.person, // o el icono que tú quieras
+              label: "Clientes",
               index: 1,
             ),
+
             _buildDivider(screenHeight),
             buildSection(
               icon: Icons.settings,

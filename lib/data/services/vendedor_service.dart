@@ -210,4 +210,71 @@ class VendedorService {
       return false;
     }
   }
+
+  Future<Vendedor?> createVendedor({
+    required String nombre,
+    required String apellido,
+    required String email,
+    required String password,
+  }) async {
+    final token = await _storage.getAccessToken();
+    if (token == null) return null;
+
+    final String url = "${ApiConstants.vendedor}"; // /api/vendedor
+
+    try {
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          "Authorization": "Bearer $token",
+          "Content-Type": "application/json",
+        },
+        body: jsonEncode({
+          "nombre": nombre,
+          "apellido": apellido,
+          "email": email,
+          "password": password,
+        }),
+      );
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        return Vendedor.fromJson(json);
+      }
+
+      print("Error creando vendedor: ${response.body}");
+      return null;
+    } catch (e) {
+      print("Excepción creando vendedor: $e");
+      return null;
+    }
+  }
+
+  Future<Vendedor?> getById(int idVendedor) async {
+    final token = await _storage.getAccessToken();
+    if (token == null) return null;
+
+    final url = Uri.parse("${ApiConstants.vendedor}/$idVendedor");
+
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return Vendedor.fromJson(data);
+      } else {
+        print("❌ Error ${response.statusCode}: ${response.body}");
+        return null;
+      }
+    } catch (e) {
+      print("⚠️ Error al obtener vendedor por ID: $e");
+      return null;
+    }
+  }
 }

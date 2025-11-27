@@ -1,11 +1,12 @@
 import 'package:expositor_app/data/models/vendedor.dart';
+import 'package:expositor_app/presentation/pages/admin/cliente/cliente_admin_page.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:expositor_app/presentation/widget/custom_app_bar.dart';
 import 'package:expositor_app/presentation/widget/custom_footer.dart';
 import 'package:expositor_app/presentation/pages/admin/product_admin_page.dart';
 import 'package:expositor_app/presentation/pages/admin/dashboard_admin_page.dart';
-import 'package:expositor_app/presentation/pages/admin/config_vendedor_admin_page.dart';
+import 'package:expositor_app/presentation/pages/admin/config/config_vendedor_admin_page.dart';
 
 class HomeAdminPage extends StatefulWidget {
   final Vendedor vendedorActual;
@@ -26,7 +27,7 @@ class _HomeAdminPageState extends State<HomeAdminPage> {
     super.initState();
     _pages.addAll([
       VendedoresDashboardPage(),
-      ProductAdminPage(),
+      ClientesAdminPage(),
       ConfigVendedorPage(vendedorActual: widget.vendedorActual),
     ]);
   }

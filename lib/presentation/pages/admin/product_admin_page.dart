@@ -105,23 +105,36 @@ class _ProductAdminPageState extends State<ProductAdminPage> {
   // ===================================================
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 30),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // TÍTULO + BOTÓN CREAR
-          Row(
-            children: [
-              Text(
-                "Productos",
-                style: GoogleFonts.poppins(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(width: 16),
-              ElevatedButton.icon(
+    return Scaffold(
+      backgroundColor: const Color(0xFFF3F5FB),
+
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF3C75EF), // Azul corporativo
+        elevation: 0,
+        centerTitle: false,
+
+        title: Text(
+          "Administrar Productos",
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w600,
+            fontSize: 20,
+            color: Colors.white, // 🔥 Texto blanco
+          ),
+        ),
+
+        iconTheme: const IconThemeData(
+          color: Colors.white, // 🔥 Iconos blancos (flecha atrás, menú…)
+        ),
+      ),
+
+      body: Padding(
+        padding: const EdgeInsets.only(top: 20),
+
+        child: Column(
+          children: [
+            // TÍTULO + BOTÓN CREAR
+            Align(
+              child: ElevatedButton.icon(
                 onPressed: () => _showCreateOrEditDialog(),
                 icon: const Icon(Icons.add, color: Colors.white),
                 label: Text(
@@ -139,83 +152,107 @@ class _ProductAdminPageState extends State<ProductAdminPage> {
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
 
-          const SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-          // BUSCADOR
-          Align(
-            alignment: Alignment.centerRight,
-            child: SizedBox(
-              width: 300,
-              child: TextField(
-                controller: _searchCtrl,
-                decoration: InputDecoration(
-                  hintText: "Buscar...",
-                  suffixIcon: const Icon(Icons.search),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(6),
+            // BUSCADOR
+            Align(
+              child: SizedBox(
+                width: 300,
+                child: TextField(
+                  controller: _searchCtrl,
+                  decoration: InputDecoration(
+                    hintText: "Buscar...",
+                    suffixIcon: const Icon(Icons.search),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
 
-          const SizedBox(height: 30),
+            const SizedBox(height: 30),
 
-          // CABECERA FIJA
-          Container(
-            width: double.infinity,
-            color: Colors.grey.shade200,
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-            child: Row(
-              children: const [
-                _HeaderCell("ID", flex: 1),
-                _HeaderCell("NOMBRE", flex: 4),
-                _HeaderCell("PRECIO UNITARIO", flex: 3),
-                _HeaderCell("CATEGORÍA", flex: 3),
-              ],
-            ),
-          ),
-
-          // TABLA CON SCROLL + DOBLE CLICK
-          Expanded(
-            child: ListView.builder(
-              itemCount: _filtered.length,
-              itemBuilder: (ctx, i) {
-                final p = _filtered[i];
-                final categoriaStr = p.categoria.toString().split('.').last;
-
-                return GestureDetector(
-                  onDoubleTap: () => _showCreateOrEditDialog(producto: p),
+            // CABECERA TABLA
+            // ================= TABLA ESTÁTICA CON SCROLL HORIZONTAL =================
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Center(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 14,
-                      horizontal: 16,
-                    ),
-                    decoration: BoxDecoration(
-                      border: Border(
-                        bottom: BorderSide(
-                          color: Colors.grey.shade300,
-                          width: 1,
-                        ),
-                      ),
-                    ),
-                    child: Row(
+                    width: 900, // 👈 ancho fijo de la tabla
+                    child: Column(
                       children: [
-                        _RowCell("${p.id}", flex: 1),
-                        _RowCell(p.descripcion, flex: 4),
-                        _RowCell("${p.precio} €", flex: 3),
-                        _RowCell(categoriaStr, flex: 3),
+                        // CABECERA
+                        Container(
+                          width: 900,
+                          color: Colors.grey.shade200,
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 12,
+                            horizontal: 16,
+                          ),
+                          child: Row(
+                            children: const [
+                              _HeaderCell("ID", flex: 1),
+                              _HeaderCell("NOMBRE", flex: 4),
+                              _HeaderCell("PRECIO UNITARIO", flex: 3),
+                              _HeaderCell("CATEGORÍA", flex: 3),
+                            ],
+                          ),
+                        ),
+
+                        // FILAS
+                        Expanded(
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: _filtered.length,
+                            itemBuilder: (ctx, i) {
+                              final p = _filtered[i];
+                              final categoriaStr = p.categoria
+                                  .toString()
+                                  .split('.')
+                                  .last;
+
+                              return GestureDetector(
+                                onDoubleTap: () =>
+                                    _showCreateOrEditDialog(producto: p),
+                                child: Container(
+                                  width: 900, // 👈 mismo ancho fijo de la tabla
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                    horizontal: 16,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      bottom: BorderSide(
+                                        color: Colors.grey.shade300,
+                                        width: 1,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      _RowCell("${p.id}", flex: 1),
+                                      _RowCell(p.descripcion, flex: 4),
+                                      _RowCell("${p.precio} €", flex: 3),
+                                      _RowCell(categoriaStr, flex: 3),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                );
-              },
+                ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
