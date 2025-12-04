@@ -6,7 +6,7 @@ import 'package:expositor_app/data/models/vendedor.dart';
 import 'package:expositor_app/data/services/cliente_service.dart';
 import 'package:expositor_app/data/services/vendedor_service.dart';
 
-import 'package:expositor_app/presentation/widget/cards/card_cliente.dart';
+import 'package:expositor_app/presentation/widget/cards/cliente_card.dart';
 import 'package:expositor_app/presentation/pages/admin/cliente/cliente_details_admin_page.dart';
 
 class ClientesAdminPage extends StatefulWidget {

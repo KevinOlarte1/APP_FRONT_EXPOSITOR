@@ -90,4 +90,46 @@ class AuthService {
       return false;
     }
   }
+
+  Future<bool> refresh() async {
+    // Obtener refresh token actual
+    final refreshToken = await _storage.getRefreshToken();
+    if (refreshToken == null) {
+      print("⚠️ No hay refresh token almacenado");
+      return false;
+    }
+
+    final url = Uri.parse("${ApiConstants.auth}/refresh");
+
+    final body = jsonEncode({"refreshToken": refreshToken});
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: body,
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        final newAccess = data["accessToken"];
+        final newRefresh = data["refreshToken"];
+
+        if (newAccess != null && newRefresh != null) {
+          await _storage.saveTokens(newAccess, newRefresh);
+          print("🔄 Tokens refrescados correctamente.");
+          return true;
+        }
+      } else {
+        print(
+          "❌ Error al refrescar token: ${response.statusCode} — ${response.body}",
+        );
+      }
+    } catch (e) {
+      print("⚠️ Error de conexión al refrescar token: $e");
+    }
+
+    return false;
+  }
 }

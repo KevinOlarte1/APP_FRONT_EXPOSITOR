@@ -71,4 +71,25 @@ class ClienteService {
       return {};
     }
   }
+
+  Future<Cliente?> getClienteById(int idCliente) async {
+    final token = await _storage.getAccessToken();
+    if (token == null) return null;
+
+    final url = Uri.parse("${ApiConstants.clientes}/admin/$idCliente");
+
+    final response = await http.get(
+      url,
+      headers: {
+        "Authorization": "Bearer $token",
+        "Content-Type": "application/json",
+      },
+    );
+    if (response.statusCode == 200) {
+      final jsonData = jsonDecode(response.body);
+      return Cliente.fromJson(jsonData);
+    }
+
+    return null;
+  }
 }

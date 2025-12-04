@@ -14,7 +14,7 @@ class CardCliente extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
       child: Container(
-        width: 200,
+        width: 350,
         padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
         decoration: BoxDecoration(
           color: Colors.white,

@@ -1,4 +1,8 @@
+import 'package:expositor_app/data/models/pedido.dart';
 import 'package:expositor_app/data/services/cliente_service.dart';
+import 'package:expositor_app/data/services/pedido_service.dart';
+import 'package:expositor_app/presentation/pages/admin/pedido_admin_page.dart';
+import 'package:expositor_app/presentation/widget/cards/pedido_card.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:expositor_app/data/models/cliente.dart';
@@ -18,6 +22,7 @@ class ClienteDetailsAdminPage extends StatefulWidget {
 class _ClienteDetailsAdminPageState extends State<ClienteDetailsAdminPage> {
   final VendedorService vendedorService = VendedorService();
   final ClienteService clienteService = ClienteService();
+  final PedidoService pedidoService = PedidoService();
 
   late Future<Vendedor?> futureVendedor;
 
@@ -300,57 +305,100 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsAdminPage> {
             ),
 
             const SizedBox(height: 20),
-
             // -----------------------------------------------------------
-            // CARD 3 — PEDIDOS
+            // CARD 3 — PEDIDOS RESPONSIVE CON PedidoCard
             // -----------------------------------------------------------
-            Card(
-              elevation: 3,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "Pedidos del Cliente",
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
+            FutureBuilder<List<Pedido>>(
+              future: pedidoService.getPedidosByClienteAdmin(cliente.id),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return Card(
+                    elevation: 3,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
                     ),
-
-                    const SizedBox(height: 12),
-
-                    _infoRow(
-                      "Número total",
-                      cliente.idPedidos.length.toString(),
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    if (cliente.idPedidos.isNotEmpty)
-                      Wrap(
-                        spacing: 8,
-                        children: cliente.idPedidos
-                            .map(
-                              (id) => Chip(
-                                label: Text("Pedido $id"),
-                                backgroundColor: Colors.blue.shade50,
-                              ),
-                            )
-                            .toList(),
-                      )
-                    else
-                      const Text(
+                    child: const Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Text(
                         "Este cliente no tiene pedidos.",
                         style: TextStyle(color: Colors.grey),
                       ),
-                  ],
-                ),
-              ),
+                    ),
+                  );
+                }
+
+                final pedidos = snapshot.data!;
+
+                return Card(
+                  elevation: 3,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "Pedidos del Cliente",
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            double width = constraints.maxWidth;
+
+                            int crossAxisCount = 1; // móvil por defecto
+
+                            if (width > 600) crossAxisCount = 2; // tablets
+                            if (width > 1000)
+                              crossAxisCount = 3; // pantallas grandes
+
+                            return GridView.builder(
+                              itemCount: pedidos.length,
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              gridDelegate:
+                                  SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: crossAxisCount,
+                                    crossAxisSpacing: 16,
+                                    mainAxisSpacing: 16,
+                                    childAspectRatio: 1.4,
+                                  ),
+                              itemBuilder: (context, index) {
+                                final pedido = pedidos[index];
+                                return PedidoCard(
+                                  pedido: pedido,
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            PedidoAdminDetailPage(
+                                              pedido: pedido,
+                                            ),
+                                      ),
+                                    );
+                                  },
+                                );
+                              },
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
           ],
         ),

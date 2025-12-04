@@ -95,4 +95,17 @@ class ProductoService {
       return false;
     }
   }
+
+  Future<Producto?> getProducto(int idProducto) async {
+    final token = await _storage.getAccessToken();
+    if (token == null) return null;
+    final response = await http.get(
+      Uri.parse("${ApiConstants.products}/$idProducto"),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+    return Producto.fromJson(jsonDecode(response.body));
+  }
 }
