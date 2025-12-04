@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:expositor_app/data/models/cliente.dart';
 import 'package:expositor_app/data/models/vendedor.dart';
 import 'package:expositor_app/data/services/vendedor_service.dart';
+import 'package:expositor_app/core/services/secure_storage_service.dart';
 
 class ClienteDetailsAdminPage extends StatefulWidget {
   final Cliente cliente;
@@ -23,6 +24,7 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsAdminPage> {
   final VendedorService vendedorService = VendedorService();
   final ClienteService clienteService = ClienteService();
   final PedidoService pedidoService = PedidoService();
+  final SecureStorageService secureStorage = SecureStorageService();
 
   late Future<Vendedor?> futureVendedor;
 
@@ -32,6 +34,64 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsAdminPage> {
     futureVendedor = vendedorService.getById(widget.cliente.idVendedor);
   }
 
+  // ============================================================
+  // CREAR PEDIDO USANDO VALORES POR DEFECTO (IVA + DESCUENTO)
+  // ============================================================
+  Future<void> _crearPedido() async {
+    final defaults = await secureStorage.getPedidoDefaults();
+    final descuento = defaults["descuento"]!.toInt();
+    final iva = defaults["iva"]!.toInt();
+
+    final nuevo = await pedidoService.addPedido(
+      idCliente: widget.cliente.id,
+      descuento: descuento,
+      iva: iva,
+    );
+
+    if (nuevo == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("❌ Error al crear pedido")));
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Pedido creado correctamente")),
+    );
+
+    setState(() {}); // recargar pedidos
+  }
+
+  // ============================================================
+  // CARD DE CREAR PEDIDO
+  // ============================================================
+  Widget _buildAddPedidoCard() {
+    return InkWell(
+      onTap: _crearPedido,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        height: 140,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: const Center(
+          child: Icon(Icons.add, size: 48, color: Color(0xFF3C75EF)),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // BUILD UI COMPLETA
+  // ============================================================
   @override
   Widget build(BuildContext context) {
     final cliente = widget.cliente;
@@ -51,7 +111,7 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsAdminPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // -----------------------------------------------------------
-            // FOTO CIRCULAR
+            // FOTO + INFO BÁSICA
             // -----------------------------------------------------------
             Center(
               child: Column(
@@ -112,7 +172,6 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsAdminPage> {
 
                     const SizedBox(height: 10),
 
-                    // FUTURE BUILDER → vendedor asociado
                     FutureBuilder<Vendedor?>(
                       future: futureVendedor,
                       builder: (context, snapshot) {
@@ -120,8 +179,7 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsAdminPage> {
                             ConnectionState.waiting) {
                           return _infoRow("Vendedor asociado", "Cargando...");
                         }
-
-                        if (!snapshot.hasData || snapshot.data == null) {
+                        if (!snapshot.hasData) {
                           return _infoRow("Vendedor asociado", "No disponible");
                         }
 
@@ -140,275 +198,320 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsAdminPage> {
             const SizedBox(height: 20),
 
             // -----------------------------------------------------------
-            // CARD 2 — INGRESOS ANUALES (GRÁFICA)
+            // CARD 2 — GRAFICA DE INGRESO ANUAL
             // -----------------------------------------------------------
-            FutureBuilder<Map<String, double>>(
-              future: clienteService.getIngresoAnual(widget.cliente.id),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return Card(
-                    elevation: 3,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Padding(
-                      padding: EdgeInsets.all(20),
-                      child: Text(
-                        "No hay datos de ingresos anuales.",
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                    ),
-                  );
-                }
-
-                final data = snapshot.data!;
-                final years = data.keys.toList();
-                final values = data.values.toList();
-                final maxValue = values.reduce((a, b) => a > b ? a : b);
-
-                return Card(
-                  elevation: 3,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "Estadísticas — Ingreso Anual",
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-
-                        const SizedBox(height: 20),
-
-                        SizedBox(
-                          height: 260,
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: SizedBox(
-                              width:
-                                  (data.length * 120).toDouble() <
-                                      MediaQuery.of(context).size.width
-                                  ? MediaQuery.of(context).size.width
-                                  : (data.length * 120).toDouble(),
-                              child: BarChart(
-                                BarChartData(
-                                  alignment: BarChartAlignment.start,
-                                  minY: 0,
-                                  maxY: maxValue * 1.25,
-
-                                  barTouchData: BarTouchData(
-                                    enabled: true,
-                                    touchTooltipData: BarTouchTooltipData(
-                                      tooltipRoundedRadius: 8,
-                                      getTooltipItem:
-                                          (group, groupIndex, rod, rodIndex) {
-                                            return BarTooltipItem(
-                                              "${years[group.x.toInt()]}\n",
-                                              const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.white,
-                                                fontSize: 14,
-                                              ),
-                                              children: [
-                                                TextSpan(
-                                                  text:
-                                                      "${rod.toY.toStringAsFixed(2)} €",
-                                                  style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 12,
-                                                  ),
-                                                ),
-                                              ],
-                                            );
-                                          },
-                                    ),
-                                  ),
-
-                                  gridData: FlGridData(
-                                    show: true,
-                                    horizontalInterval: (maxValue / 5)
-                                        .roundToDouble(),
-                                    getDrawingHorizontalLine: (value) => FlLine(
-                                      color: Colors.grey.shade300,
-                                      strokeWidth: 1,
-                                    ),
-                                  ),
-
-                                  borderData: FlBorderData(show: false),
-
-                                  titlesData: FlTitlesData(
-                                    topTitles: const AxisTitles(),
-                                    rightTitles: const AxisTitles(),
-                                    leftTitles: const AxisTitles(),
-                                    bottomTitles: AxisTitles(
-                                      sideTitles: SideTitles(
-                                        showTitles: true,
-                                        reservedSize: 40,
-                                        getTitlesWidget: (value, meta) {
-                                          final index = value.toInt();
-                                          if (index < 0 ||
-                                              index >= years.length) {
-                                            return const SizedBox.shrink();
-                                          }
-
-                                          return SideTitleWidget(
-                                            axisSide: meta.axisSide,
-                                            child: Text(
-                                              years[index],
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 14,
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                  ),
-
-                                  barGroups: List.generate(
-                                    data.length,
-                                    (i) => BarChartGroupData(
-                                      x: i,
-                                      barRods: [
-                                        BarChartRodData(
-                                          toY: values[i],
-                                          width: 35,
-                                          borderRadius: BorderRadius.circular(
-                                            6,
-                                          ),
-                                          color: const Color(0xFF3C75EF),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
+            _buildGraficaIngresos(),
 
             const SizedBox(height: 20),
+
             // -----------------------------------------------------------
-            // CARD 3 — PEDIDOS RESPONSIVE CON PedidoCard
+            // CARD 3 — PEDIDOS + BOTÓN CREAR PEDIDO
             // -----------------------------------------------------------
-            FutureBuilder<List<Pedido>>(
-              future: pedidoService.getPedidosByClienteAdmin(cliente.id),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return Card(
-                    elevation: 3,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Padding(
-                      padding: EdgeInsets.all(20),
-                      child: Text(
-                        "Este cliente no tiene pedidos.",
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                    ),
-                  );
-                }
-
-                final pedidos = snapshot.data!;
-
-                return Card(
-                  elevation: 3,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "Pedidos del Cliente",
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            double width = constraints.maxWidth;
-
-                            int crossAxisCount = 1; // móvil por defecto
-
-                            if (width > 600) crossAxisCount = 2; // tablets
-                            if (width > 1000)
-                              crossAxisCount = 3; // pantallas grandes
-
-                            return GridView.builder(
-                              itemCount: pedidos.length,
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              gridDelegate:
-                                  SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: crossAxisCount,
-                                    crossAxisSpacing: 16,
-                                    mainAxisSpacing: 16,
-                                    childAspectRatio: 1.4,
-                                  ),
-                              itemBuilder: (context, index) {
-                                final pedido = pedidos[index];
-                                return PedidoCard(
-                                  pedido: pedido,
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            PedidoAdminDetailPage(
-                                              pedido: pedido,
-                                            ),
-                                      ),
-                                    );
-                                  },
-                                );
-                              },
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
+            _buildPedidosConCrear(),
           ],
         ),
       ),
     );
   }
 
-  // -----------------------------------------------------------
-  // WIDGET FILA DE INFO
-  // -----------------------------------------------------------
+  // ============================================================
+  // GRAFICA INGRESOS (SEPARADA PARA LIMPIEZA)
+  // ============================================================
+  Widget _buildGraficaIngresos() {
+    return FutureBuilder<Map<String, double>>(
+      future: clienteService.getIngresoAnual(widget.cliente.id),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return Card(
+            elevation: 3,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Padding(
+              padding: EdgeInsets.all(20),
+              child: Text(
+                "No hay datos de ingresos anuales.",
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+          );
+        }
+
+        final data = snapshot.data!;
+        final years = data.keys.toList();
+        final values = data.values.toList();
+        final maxValue = values.reduce((a, b) => a > b ? a : b);
+
+        return Card(
+          elevation: 3,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Estadísticas — Ingreso Anual",
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+
+                const SizedBox(height: 20),
+
+                SizedBox(
+                  height: 260,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width:
+                          (data.length * 120).toDouble() <
+                              MediaQuery.of(context).size.width
+                          ? MediaQuery.of(context).size.width
+                          : (data.length * 120).toDouble(),
+                      child: BarChart(
+                        BarChartData(
+                          alignment: BarChartAlignment.start,
+                          minY: 0,
+                          maxY: maxValue * 1.25,
+                          barTouchData: BarTouchData(
+                            enabled: true,
+                            touchTooltipData: BarTouchTooltipData(
+                              tooltipRoundedRadius: 8,
+                              getTooltipItem:
+                                  (group, groupIndex, rod, rodIndex) {
+                                    return BarTooltipItem(
+                                      "${years[group.x.toInt()]}\n",
+                                      const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                      ),
+                                      children: [
+                                        TextSpan(
+                                          text:
+                                              "${rod.toY.toStringAsFixed(2)} €",
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  },
+                            ),
+                          ),
+                          gridData: FlGridData(
+                            show: true,
+                            horizontalInterval: (maxValue / 5).roundToDouble(),
+                            getDrawingHorizontalLine: (value) => FlLine(
+                              color: Colors.grey.shade300,
+                              strokeWidth: 1,
+                            ),
+                          ),
+                          borderData: FlBorderData(show: false),
+                          titlesData: FlTitlesData(
+                            topTitles: const AxisTitles(),
+                            rightTitles: const AxisTitles(),
+                            leftTitles: const AxisTitles(),
+                            bottomTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: 40,
+                                getTitlesWidget: (value, meta) {
+                                  final index = value.toInt();
+                                  if (index < 0 || index >= years.length) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  return SideTitleWidget(
+                                    axisSide: meta.axisSide,
+                                    child: Text(
+                                      years[index],
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                          barGroups: List.generate(
+                            data.length,
+                            (i) => BarChartGroupData(
+                              x: i,
+                              barRods: [
+                                BarChartRodData(
+                                  toY: values[i],
+                                  width: 35,
+                                  borderRadius: BorderRadius.circular(6),
+                                  color: const Color(0xFF3C75EF),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ============================================================
+  // PEDIDOS + BOTÓN NUEVO PEDIDO
+  // ============================================================
+  Widget _buildPedidosConCrear() {
+    final cliente = widget.cliente;
+
+    return FutureBuilder<List<Pedido>>(
+      future: pedidoService.getPedidosByClienteAdmin(cliente.id),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final pedidos = snapshot.data ?? [];
+
+        return Card(
+          elevation: 3,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Pedidos del Cliente",
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+
+                const SizedBox(height: 8),
+
+                // ===== CONTADOR DE PEDIDOS =====
+                if (pedidos.isNotEmpty)
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(
+                            0.15,
+                          ), // MISMO COLOR QUE PEDIDO ABIERTO
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          "ABIERTO: ${pedidos.where((p) => p.cerrado == false).length}",
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color:
+                                Colors.orange, // MISMO COLOR QUE PEDIDO ABIERTO
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(width: 12),
+
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withOpacity(
+                            0.15,
+                          ), // MISMO COLOR QUE PEDIDO CERRADO
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          "CERRADO: ${pedidos.where((p) => p.cerrado == true).length}",
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color:
+                                Colors.green, // MISMO COLOR QUE PEDIDO CERRADO
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                const SizedBox(height: 16),
+
+                // BOTÓN CREAR PEDIDO
+                _buildAddPedidoCard(),
+
+                const SizedBox(height: 20),
+
+                if (pedidos.isEmpty)
+                  const Text(
+                    "Este cliente no tiene pedidos.",
+                    style: TextStyle(color: Colors.grey),
+                  )
+                else
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      double width = constraints.maxWidth;
+
+                      int crossAxisCount = 1;
+                      if (width > 600) crossAxisCount = 2;
+                      if (width > 1000) crossAxisCount = 3;
+
+                      return GridView.builder(
+                        itemCount: pedidos.length,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: crossAxisCount,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
+                          childAspectRatio: 1.4,
+                        ),
+                        itemBuilder: (context, index) {
+                          final pedido = pedidos[index];
+                          return PedidoCard(
+                            pedido: pedido,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      PedidoAdminDetailPage(pedido: pedido),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      );
+                    },
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ============================================================
+  // FILA INFO
+  // ============================================================
   Widget _infoRow(String title, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),

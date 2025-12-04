@@ -1,280 +1,160 @@
-import 'dart:collection';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:expositor_app/core/constants/api_constants.dart';
-import 'package:expositor_app/core/services/secure_storage_service.dart';
 import 'package:expositor_app/data/models/vendedor.dart';
 import 'package:expositor_app/data/models/stats/ingreso_cliente.dart';
+import 'package:expositor_app/data/services/http_client_jwt.dart';
 
 class VendedorService {
-  final SecureStorageService _storage = SecureStorageService();
-
+  /// Obtener el vendedor autenticado
   Future<Vendedor?> getMe() async {
-    final token = await _storage.getAccessToken();
-    if (token == null) return null;
-
     final url = Uri.parse("${ApiConstants.vendedor}/me");
 
-    try {
-      final response = await http.get(
-        url,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
+    final response = await HttpClientJwt.get(url);
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return Vendedor.fromJson(data);
-      } else {
-        print("❌ Error ${response.statusCode}: ${response.body}");
-        return null;
-      }
-    } catch (e) {
-      print("⚠️ Error al obtener vendedor: $e");
-      return null;
+    if (response.statusCode == 200) {
+      return Vendedor.fromJson(jsonDecode(response.body));
     }
+
+    print("❌ Error getMe: ${response.statusCode}");
+    print(response.body);
+    return null;
   }
 
+  /// Obtener todos los vendedores (admin)
   Future<List<Vendedor>> getVendedores() async {
-    final token = await _storage.getAccessToken();
-    if (token == null) return [];
-
     final url = Uri.parse(ApiConstants.vendedor);
-    try {
-      final response = await http.get(
-        url,
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer $token",
-        },
-      );
 
-      if (response.statusCode == 200) {
-        final List<dynamic> jsonList = jsonDecode(response.body);
+    final response = await HttpClientJwt.get(url);
 
-        return jsonList.map((json) {
-          return Vendedor.fromJson(json);
-        }).toList();
-      } else {
-        print("❌ Error al obtener vendedores: ${response.statusCode}");
-        print(response.body);
-        return [];
-      }
-    } catch (e) {
-      print("⚠️ Error de conexión al obtener vendedores: $e");
-      return [];
+    if (response.statusCode == 200) {
+      final List<dynamic> jsonList = jsonDecode(response.body);
+      return jsonList.map((e) => Vendedor.fromJson(e)).toList();
     }
+
+    print("❌ Error getVendedores: ${response.statusCode}");
+    print(response.body);
+    return [];
   }
 
+  /// Obtener número de pedidos por vendedor
   Future<Map<String, int>> getNumPedidos(int idVendedor) async {
-    final token = await _storage.getAccessToken();
-    if (token == null) return new HashMap();
-    try {
-      final response = await http.get(
-        Uri.parse("${ApiConstants.vendedor}/$idVendedor/stats/numPedido"),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
+    final url = Uri.parse(
+      "${ApiConstants.vendedor}/$idVendedor/stats/numPedido",
+    );
 
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> data = jsonDecode(response.body);
+    final response = await HttpClientJwt.get(url);
 
-        // Convertimos los valores dinámicos a enteros
-        return data.map((key, value) => MapEntry(key, value as int));
-      } else {
-        print("Error al obtener numPedidos: ${response.statusCode}");
-        return new HashMap();
-      }
-    } catch (e) {
-      print("⚠️ Error al obtener numPedidos: $e");
-      return new HashMap();
+    if (response.statusCode == 200) {
+      final Map<String, dynamic> data = jsonDecode(response.body);
+      return data.map((k, v) => MapEntry(k, (v as num).toInt()));
     }
+
+    print("❌ Error getNumPedidos: ${response.statusCode}");
+    print(response.body);
+    return {};
   }
 
-  // ----------------------------------------------------------------------
-  //  OBTENER VENTAS POR CATEGORÍA (Map<String, int>)
-  // ----------------------------------------------------------------------
+  /// Obtener productos vendidos por categoría
   Future<Map<String, int>> getStatsProductsByCategory(int idVendedor) async {
-    print("Holaa");
-    final token = await _storage.getAccessToken();
-    if (token == null) return {};
+    final url = Uri.parse(
+      "${ApiConstants.vendedor}/$idVendedor/stats/numProductsCategoria",
+    );
 
-    final String url =
-        "${ApiConstants.vendedor}/$idVendedor/stats/numProductsCategoria";
+    final response = await HttpClientJwt.get(url);
 
-    try {
-      print("llega");
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
-      print("------");
+    if (response.statusCode == 200) {
+      final Map<String, dynamic> data = jsonDecode(response.body);
 
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> data = jsonDecode(response.body);
-
-        // Convertir dinámicos a int
-        final Map<String, int> result = data.map(
-          (key, value) => MapEntry(
-            key,
-            (value as num).toInt(), // por si viene como long
-          ),
-        );
-
-        return result;
-      } else {
-        throw Exception("Error ${response.statusCode}: ${response.body}");
-      }
-    } catch (e) {
-      throw Exception("Error al obtener categorías: $e");
+      return data.map((key, value) => MapEntry(key, (value as num).toInt()));
     }
+
+    print("❌ Error getStatsProductsByCategory: ${response.statusCode}");
+    print(response.body);
+    return {};
   }
 
-  // ----------------------------------------------------------------------
-  //  OBTENER ingresos anual de un vendedor (Map<String, int>)
-  // ----------------------------------------------------------------------
-  // ----------------------------------------------------------------------
-  //  OBTENER GASTOS POR CLIENTE (List<IngresoCliente>)
-  // ----------------------------------------------------------------------
+  /// Obtener ingreso anual por cliente (gasto)
   Future<List<IngresoCliente>> getIngresoAnualByCliente(int idVendedor) async {
-    final token = await _storage.getAccessToken();
-    if (token == null) return [];
+    final url = Uri.parse(
+      "${ApiConstants.vendedor}/$idVendedor/stats/gastoPorCliente",
+    );
 
-    final String url =
-        "${ApiConstants.vendedor}/$idVendedor/stats/gastoPorCliente";
+    final response = await HttpClientJwt.get(url);
 
-    try {
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-
-        return data.map((e) => IngresoCliente.fromJson(e)).toList();
-      } else {
-        throw Exception("Error ${response.statusCode}: ${response.body}");
-      }
-    } catch (e) {
-      throw Exception("Error al obtener gasto por cliente: $e");
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.map((e) => IngresoCliente.fromJson(e)).toList();
     }
+
+    print("❌ Error getIngresoAnualByCliente: ${response.statusCode}");
+    print(response.body);
+    return [];
   }
 
+  /// Actualizar datos del vendedor
   Future<bool> updateVendedor(Vendedor vendedor, {String? password}) async {
-    final token = await _storage.getAccessToken();
-    if (token == null) return false;
+    final url = Uri.parse("${ApiConstants.vendedor}/${vendedor.id}");
 
-    final url = "${ApiConstants.vendedor}/${vendedor.id}";
-
-    // Construimos el DTO según el backend
     final Map<String, dynamic> body = {
       "nombre": vendedor.nombre,
       "apellido": vendedor.apellido,
       "email": vendedor.email,
     };
 
-    // Si password no es null, lo enviamos
     if (password != null && password.trim().isNotEmpty) {
       body["password"] = password;
     }
 
-    try {
-      final response = await http.put(
-        Uri.parse(url),
-        headers: {
-          "Authorization": "Bearer $token",
-          "Content-Type": "application/json",
-        },
-        body: jsonEncode(body),
-      );
+    final response = await HttpClientJwt.put(url, body: jsonEncode(body));
 
-      if (response.statusCode == 200 || response.statusCode == 204) {
-        return true;
-      } else {
-        print("Error actualizando vendedor: ${response.body}");
-        return false;
-      }
-    } catch (e) {
-      print("Excepción en updateVendedor: $e");
-      return false;
+    if (response.statusCode == 200 || response.statusCode == 204) {
+      return true;
     }
+
+    print("❌ Error updateVendedor: ${response.statusCode}");
+    print(response.body);
+    return false;
   }
 
+  /// Crear nuevo vendedor
   Future<Vendedor?> createVendedor({
     required String nombre,
     required String apellido,
     required String email,
     required String password,
   }) async {
-    final token = await _storage.getAccessToken();
-    if (token == null) return null;
+    final url = Uri.parse(ApiConstants.vendedor);
 
-    final String url = "${ApiConstants.vendedor}"; // /api/vendedor
+    final body = jsonEncode({
+      "nombre": nombre,
+      "apellido": apellido,
+      "email": email,
+      "password": password,
+    });
 
-    try {
-      final response = await http.post(
-        Uri.parse(url),
-        headers: {
-          "Authorization": "Bearer $token",
-          "Content-Type": "application/json",
-        },
-        body: jsonEncode({
-          "nombre": nombre,
-          "apellido": apellido,
-          "email": email,
-          "password": password,
-        }),
-      );
+    final response = await HttpClientJwt.post(url, body: body);
 
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        final json = jsonDecode(response.body);
-        return Vendedor.fromJson(json);
-      }
-
-      print("Error creando vendedor: ${response.body}");
-      return null;
-    } catch (e) {
-      print("Excepción creando vendedor: $e");
-      return null;
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return Vendedor.fromJson(jsonDecode(response.body));
     }
+
+    print("❌ Error createVendedor: ${response.statusCode}");
+    print(response.body);
+    return null;
   }
 
+  /// Obtener vendedor por ID
   Future<Vendedor?> getById(int idVendedor) async {
-    final token = await _storage.getAccessToken();
-    if (token == null) return null;
-
     final url = Uri.parse("${ApiConstants.vendedor}/$idVendedor");
 
-    try {
-      final response = await http.get(
-        url,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
+    final response = await HttpClientJwt.get(url);
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return Vendedor.fromJson(data);
-      } else {
-        print("❌ Error ${response.statusCode}: ${response.body}");
-        return null;
-      }
-    } catch (e) {
-      print("⚠️ Error al obtener vendedor por ID: $e");
-      return null;
+    if (response.statusCode == 200) {
+      return Vendedor.fromJson(jsonDecode(response.body));
     }
+
+    print("❌ Error getById: ${response.statusCode}");
+    print(response.body);
+    return null;
   }
 }

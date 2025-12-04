@@ -1,13 +1,22 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+
 import 'package:expositor_app/core/constants/api_constants.dart';
 import 'package:expositor_app/core/services/secure_storage_service.dart';
+
 import '../dto/login_request.dart';
 import '../dto/login_response.dart';
 
 class AuthService {
+  // Storage de instancia (login usa este)
   final SecureStorageService _storage = SecureStorageService();
 
+  // Storage estático (para refresh automático)
+  static final SecureStorageService _staticStorage = SecureStorageService();
+
+  // ============================================================
+  // 💠 LOGIN
+  // ============================================================
   Future<LoginResponse?> login(LoginRequest request) async {
     final url = Uri.parse("${ApiConstants.auth}/login");
 
@@ -22,12 +31,13 @@ class AuthService {
         final data = jsonDecode(response.body);
         final loginResponse = LoginResponse.fromJson(data);
 
-        // 🧠 Guardar tokens de forma segura
+        // Guardar tokens
         await _storage.saveTokens(
           loginResponse.accessToken,
           loginResponse.refreshToken,
         );
-        print("Guarda datos");
+
+        print("🔐 Tokens guardados correctamente.");
         return loginResponse;
       } else {
         print("❌ Error ${response.statusCode}: ${response.body}");
@@ -39,6 +49,9 @@ class AuthService {
     }
   }
 
+  // ============================================================
+  // 💠 FORGOT PASSWORD
+  // ============================================================
   Future<bool> forgotPassword(String email) async {
     final url = Uri.parse("${ApiConstants.auth}/forgot-password");
 
@@ -50,7 +63,7 @@ class AuthService {
       );
 
       if (response.statusCode == 200) {
-        print("✅ Correo de recuperación enviado correctamente");
+        print("📨 Email de recuperación enviado");
         return true;
       } else {
         print("❌ Error ${response.statusCode}: ${response.body}");
@@ -62,6 +75,9 @@ class AuthService {
     }
   }
 
+  // ============================================================
+  // 💠 RESET PASSWORD
+  // ============================================================
   Future<bool> resetPassword({
     required String email,
     required String code,
@@ -79,35 +95,36 @@ class AuthService {
       );
 
       if (response.statusCode == 200) {
-        print("✅ Contraseña restablecida correctamente");
+        print("🔄 Contraseña cambiada correctamente");
         return true;
       } else {
         print("❌ Error ${response.statusCode}: ${response.body}");
         return false;
       }
     } catch (e) {
-      print("⚠️ Error al conectar con el servidor: $e");
+      print("⚠️ Error de conexión: $e");
       return false;
     }
   }
 
-  Future<bool> refresh() async {
-    // Obtener refresh token actual
-    final refreshToken = await _storage.getRefreshToken();
+  // ============================================================
+  // 💠 REFRESH TOKEN (AHORA ESTÁTICO PARA HttpClientJwt)
+  // ============================================================
+  static Future<bool> refresh() async {
+    final refreshToken = await _staticStorage.getRefreshToken();
+
     if (refreshToken == null) {
-      print("⚠️ No hay refresh token almacenado");
+      print("⚠️ No hay refresh token guardado");
       return false;
     }
 
     final url = Uri.parse("${ApiConstants.auth}/refresh");
 
-    final body = jsonEncode({"refreshToken": refreshToken});
-
     try {
       final response = await http.post(
         url,
         headers: {"Content-Type": "application/json"},
-        body: body,
+        body: jsonEncode({"refreshToken": refreshToken}),
       );
 
       if (response.statusCode == 200) {
@@ -117,7 +134,7 @@ class AuthService {
         final newRefresh = data["refreshToken"];
 
         if (newAccess != null && newRefresh != null) {
-          await _storage.saveTokens(newAccess, newRefresh);
+          await _staticStorage.saveTokens(newAccess, newRefresh);
           print("🔄 Tokens refrescados correctamente.");
           return true;
         }

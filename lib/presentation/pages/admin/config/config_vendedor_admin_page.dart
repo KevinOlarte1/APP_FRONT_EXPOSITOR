@@ -1,3 +1,4 @@
+import 'package:expositor_app/core/services/secure_storage_service.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -28,6 +29,13 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
   late TextEditingController emailCtrl;
   final TextEditingController passwordCtrl = TextEditingController();
 
+  final SecureStorageService storage = SecureStorageService();
+
+  // Controllers
+  late TextEditingController descuentoCtrl;
+  late TextEditingController ivaCtrl;
+
+  bool loadingDefaults = true;
   bool isSaving = false;
 
   @override
@@ -36,6 +44,11 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
     nombreCtrl = TextEditingController();
     apellidoCtrl = TextEditingController();
     emailCtrl = TextEditingController();
+
+    descuentoCtrl = TextEditingController();
+    ivaCtrl = TextEditingController();
+
+    _loadPedidoDefaults();
   }
 
   // ===============================================================
@@ -693,7 +706,54 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
             ),
 
             // ---------------------------------------------------
-            // CARD 2 — ADMINISTRAR CATEGORÍAS
+            // CARD 2 — VALORES POR DEFECTO PARA PEDIDOS
+            // ---------------------------------------------------
+            _card(
+              title: "Valores por defecto para pedidos",
+              child: loadingDefaults
+                  ? const Center(child: CircularProgressIndicator())
+                  : Column(
+                      children: [
+                        _input(
+                          label: "Descuento (%)",
+                          placeholder: "0 - 100",
+                          controller: descuentoCtrl,
+                        ),
+
+                        _input(
+                          label: "IVA (%)",
+                          placeholder: "0 - 100",
+                          controller: ivaCtrl,
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        SizedBox(
+                          width: 220,
+                          child: ElevatedButton(
+                            onPressed: _savePedidoDefaults,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF3C75EF),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: Text(
+                              "Guardar valores",
+                              style: GoogleFonts.poppins(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+
+            // ---------------------------------------------------
+            // CARD 3 — ADMINISTRAR CATEGORÍAS
             // ---------------------------------------------------
             _card(
               title: "Administrar categorías",
@@ -729,7 +789,7 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
             ),
 
             // ---------------------------------------------------
-            // CARD 3 — ADMINISTRAR VENDEDORES
+            // CARD 4 — ADMINISTRAR VENDEDORES
             // ---------------------------------------------------
             _card(
               title: "Administrar vendedores",
@@ -765,7 +825,7 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
             ),
 
             // ---------------------------------------------------
-            // CARD 4 — ADMINISTRAR PRODUCTOS (MODULARIZADO)
+            // CARD 5 — ADMINISTRAR PRODUCTOS (MODULARIZADO)
             // ---------------------------------------------------
             AdminMenuTile(
               title: "Administrar Productos",
@@ -780,5 +840,32 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _loadPedidoDefaults() async {
+    final cfg = await storage.getPedidoDefaults();
+
+    descuentoCtrl.text = cfg["descuento"].toString();
+    ivaCtrl.text = cfg["iva"].toString();
+
+    setState(() => loadingDefaults = false);
+  }
+
+  Future<void> _savePedidoDefaults() async {
+    final d = double.tryParse(descuentoCtrl.text) ?? -1;
+    final i = double.tryParse(ivaCtrl.text) ?? -1;
+
+    if (d < 0 || d > 100 || i < 0 || i > 100) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Los valores deben estar entre 0 y 100.")),
+      );
+      return;
+    }
+
+    await storage.savePedidoDefaults(descuento: d, iva: i);
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text("Valores guardados.")));
   }
 }

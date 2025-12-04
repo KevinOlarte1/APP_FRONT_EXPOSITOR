@@ -7,8 +7,8 @@ class Pedido {
   final List<int> idLineaPedido;
 
   final bool cerrado;
-  final int descuento;
-  final int iva;
+  int descuento;
+  int iva;
 
   // Nuevos campos enviados por el backend (formato String)
   final String brutoTotal;
