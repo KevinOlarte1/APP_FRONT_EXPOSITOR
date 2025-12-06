@@ -494,7 +494,11 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsAdminPage> {
                                   builder: (context) =>
                                       PedidoAdminDetailPage(pedido: pedido),
                                 ),
-                              );
+                              ).then((_) {
+                                setState(
+                                  () {},
+                                ); // 🔥 vuelve a ejecutar los FutureBuilder y recarga todo
+                              });
                             },
                           );
                         },

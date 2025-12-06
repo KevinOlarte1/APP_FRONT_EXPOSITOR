@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:expositor_app/core/constants/api_constants.dart';
 import 'package:expositor_app/data/models/producto.dart';
 import 'package:expositor_app/data/services/http_client_jwt.dart';
@@ -66,6 +67,20 @@ class ProductoService {
     }
 
     print("❌ Error getProducto: ${response.statusCode}");
+    return null;
+  }
+
+  /// Descargar CSV de productos
+  Future<Uint8List?> getProductosCsv() async {
+    final url = Uri.parse("${ApiConstants.products}/csv");
+
+    final response = await HttpClientJwt.get(url);
+
+    if (response.statusCode == 200) {
+      return response.bodyBytes;
+    }
+
+    print("❌ Error getProductosCsv: ${response.statusCode}");
     return null;
   }
 }

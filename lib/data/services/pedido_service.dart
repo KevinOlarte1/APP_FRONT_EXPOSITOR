@@ -88,4 +88,14 @@ class PedidoService {
 
     return null;
   }
+
+  Future<bool> cerrarPedido(int idCliente, int idPedido) async {
+    final url = Uri.parse(
+      "${ApiConstants.clientes}/$idCliente/pedido/$idPedido/cerrar",
+    );
+
+    final response = await HttpClientJwt.put(url);
+
+    return response.statusCode == 200;
+  }
 }

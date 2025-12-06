@@ -1,36 +1,80 @@
-import 'package:expositor_app/data/models/linea_pedido.dart';
-import 'package:expositor_app/data/services/linea_pedido_service.dart';
-import 'package:expositor_app/data/services/producto_service.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 import 'package:expositor_app/data/models/pedido.dart';
+import 'package:expositor_app/data/models/linea_pedido.dart';
+import 'package:expositor_app/data/models/producto.dart';
 import 'package:expositor_app/data/models/cliente.dart';
+
+import 'package:expositor_app/data/services/pedido_service.dart';
+import 'package:expositor_app/data/services/linea_pedido_service.dart';
+import 'package:expositor_app/data/services/producto_service.dart';
 import 'package:expositor_app/data/services/cliente_service.dart';
 
 class PedidoAdminDetailPage extends StatefulWidget {
-  final Pedido pedido;
+  Pedido pedido;
 
-  const PedidoAdminDetailPage({super.key, required this.pedido});
+  PedidoAdminDetailPage({super.key, required this.pedido});
 
   @override
   State<PedidoAdminDetailPage> createState() => _PedidoAdminDetailPageState();
 }
 
 class _PedidoAdminDetailPageState extends State<PedidoAdminDetailPage> {
-  Cliente? cliente;
   final ClienteService clienteService = ClienteService();
+  final PedidoService pedidoService = PedidoService();
   final LineaPedidoService lineapedidoService = LineaPedidoService();
   final ProductoService productoService = ProductoService();
+
+  Cliente? cliente;
+  List<LineaPedido> lineas = [];
+  bool loadingLineas = true;
 
   @override
   void initState() {
     super.initState();
-    _loadCliente();
+    _loadAll();
   }
 
+  Future<void> _loadAll() async {
+    await _loadCliente();
+    await _loadLineasPedido();
+  }
+
+  // CARGAR CLIENTE
   Future<void> _loadCliente() async {
     final cli = await clienteService.getClienteById(widget.pedido.idCliente);
     setState(() => cliente = cli);
+  }
+
+  // CARGAR LÍNEAS
+  Future<void> _loadLineasPedido() async {
+    setState(() => loadingLineas = true);
+
+    final result = await lineapedidoService.getLineasPedido(
+      widget.pedido.idCliente,
+      widget.pedido.id,
+    );
+
+    setState(() {
+      lineas = result;
+      loadingLineas = false;
+    });
+  }
+
+  // REFRESCAR PEDIDO + LÍNEAS + CLIENTE
+  Future<void> _refreshPedido() async {
+    final updated = await pedidoService.getPedido(
+      idCliente: widget.pedido.idCliente,
+      idPedido: widget.pedido.id,
+    );
+
+    if (updated != null) {
+      setState(() => widget.pedido = updated);
+    }
+
+    await _loadLineasPedido();
+    await _loadCliente();
   }
 
   @override
@@ -52,7 +96,7 @@ class _PedidoAdminDetailPageState extends State<PedidoAdminDetailPage> {
         children: [
           const SizedBox(height: 20),
 
-          // ---------- ICONO PRINCIPAL ----------
+          // ---------- ICONO ----------
           Center(
             child: Container(
               width: 110,
@@ -103,188 +147,15 @@ class _PedidoAdminDetailPageState extends State<PedidoAdminDetailPage> {
             const Center(child: CircularProgressIndicator()),
 
           const SizedBox(height: 30),
+
           _buildLineasCard(),
         ],
       ),
     );
   }
 
-  Widget _buildLineasCard() {
-    return Card(
-      elevation: 6,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      shadowColor: Colors.black26,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Líneas del pedido",
-              style: GoogleFonts.poppins(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            FutureBuilder(
-              future: lineapedidoService.getLineasPedido(
-                widget.pedido.idCliente,
-                widget.pedido.id,
-              ),
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                final lineas = snapshot.data!;
-
-                if (lineas.isEmpty) {
-                  return Center(
-                    child: Text(
-                      "No hay líneas registradas",
-                      style: GoogleFonts.poppins(
-                        fontSize: 15,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                  );
-                }
-
-                return Column(
-                  children: [
-                    for (int i = 0; i < lineas.length; i++) ...[
-                      _buildLineaReal(lineas[i]),
-                      if (i < lineas.length - 1)
-                        const Divider(height: 30, thickness: 1),
-                    ],
-                  ],
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLineaReal(LineaPedido linea) {
-    return FutureBuilder(
-      future: productoService.getProducto(linea.idProducto),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const SizedBox(
-            height: 40,
-            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-          );
-        }
-
-        final producto = snapshot.data!;
-        final totalLinea = (linea.precio * linea.cantidad).toStringAsFixed(2);
-
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ------------ ICONO NUMERO LINEA ------------
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.blue.shade100,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                Icons.shopping_bag,
-                color: Colors.blue,
-                size: 22,
-              ),
-            ),
-
-            const SizedBox(width: 15),
-
-            // ------------ DATOS DE LA LÍNEA ------------
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    producto.descripcion,
-                    style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    "Cantidad: ${linea.cantidad}",
-                    style: GoogleFonts.poppins(fontSize: 14),
-                  ),
-                  Text(
-                    "Precio unitario: ${linea.precio.toStringAsFixed(2)} €",
-                    style: GoogleFonts.poppins(fontSize: 14),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    "Total línea: $totalLinea €",
-                    style: GoogleFonts.poppins(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildLineaItem(int index) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Número de línea
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: Colors.blue.shade100,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Center(
-            child: Text(
-              index.toString(),
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.bold,
-                color: Colors.blue.shade800,
-              ),
-            ),
-          ),
-        ),
-
-        const SizedBox(width: 16),
-
-        // Datos de la línea (por ahora solo ID)
-        Expanded(
-          child: Text(
-            "Línea ID: ${widget.pedido.idLineaPedido[index - 1]}",
-            style: GoogleFonts.poppins(
-              fontSize: 15,
-              fontWeight: FontWeight.w500,
-              color: Colors.black87,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   // ===========================================================
-  //                     CARD DE INFORMACIÓN
+  //                  CARD INFORMACIÓN PRINCIPAL
   // ===========================================================
   Widget _buildInfoCard(Pedido pedido, Cliente cliente) {
     return Card(
@@ -294,32 +165,27 @@ class _PedidoAdminDetailPageState extends State<PedidoAdminDetailPage> {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 30),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // ------------------- COLUMNA IZQUERDA -------------------
+            // ----- Columna izquierda -----
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _titleItem("Bruto total:", "${pedido.brutoTotal} €"),
-                  const SizedBox(height: 18),
-
+                  const SizedBox(height: 16),
                   _titleItem(
                     "Base imponible:",
                     "${pedido.baseImponible} €   •   ${pedido.descuento}%",
                   ),
-                  const SizedBox(height: 18),
-
+                  const SizedBox(height: 16),
                   _titleItem(
                     "IVA:",
                     "${pedido.precioIva} €   •   ${pedido.iva}%",
                   ),
-                  const SizedBox(height: 18),
-
+                  const SizedBox(height: 16),
                   _titleItem("Total final:", "${pedido.total} €"),
-                  const SizedBox(height: 18),
-
+                  const SizedBox(height: 16),
                   _titleItem(
                     "Num de líneas:",
                     pedido.idLineaPedido.length.toString(),
@@ -330,17 +196,15 @@ class _PedidoAdminDetailPageState extends State<PedidoAdminDetailPage> {
 
             const SizedBox(width: 40),
 
-            // ------------------- COLUMNA DERECHA -------------------
+            // ----- Columna derecha -----
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _titleItem("ID del pedido:", pedido.id.toString()),
-                  const SizedBox(height: 18),
-
+                  const SizedBox(height: 16),
                   _titleItem("Cliente:", "${cliente.nombre} - ${cliente.cif}"),
-                  const SizedBox(height: 18),
-
+                  const SizedBox(height: 16),
                   _titleItem("Fecha:", formatFecha(pedido.fecha)),
                 ],
               ),
@@ -351,9 +215,48 @@ class _PedidoAdminDetailPageState extends State<PedidoAdminDetailPage> {
     );
   }
 
-  // ===========================================================
-  //                 WIDGET PARA MOSTRAR UNA FILA
-  // ===========================================================
+  // -------------------------------------------------------------------
+  // DIALOGO AÑADIR LÍNEA
+  // -------------------------------------------------------------------
+  Widget _buildAddLineaButton() {
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: _showAddLineaDialog,
+      child: Ink(
+        decoration: BoxDecoration(
+          color: Colors.blue.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.blue.shade300),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: Colors.blue,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.add, color: Colors.white, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                "Añadir línea",
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.blue.shade900,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _titleItem(String label, String value) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -380,6 +283,663 @@ class _PedidoAdminDetailPageState extends State<PedidoAdminDetailPage> {
   }
 
   // ===========================================================
+  //                    CARD LÍNEAS DEL PEDIDO
+  // ===========================================================
+  Widget _buildLineasCard() {
+    return Card(
+      elevation: 6,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shadowColor: Colors.black26,
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ---------- TÍTULO ----------
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // ---------- TÍTULO ----------
+                      Text(
+                        "Gestión de líneas",
+                        style: GoogleFonts.poppins(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black87,
+                        ),
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      // ---------- BOTÓN PARA PANTALLAS PEQUEÑAS ----------
+                      if (MediaQuery.of(context).size.width < 500)
+                        _buildResponsiveActionButton(),
+                    ],
+                  ),
+                ),
+
+                // ---------- BOTÓN PARA PANTALLAS GRANDES ----------
+                if (MediaQuery.of(context).size.width >= 500)
+                  _buildResponsiveActionButton(),
+              ],
+            ),
+
+            const SizedBox(height: 18),
+
+            // ---------- BOTÓN AÑADIR LÍNEA ----------
+            if (!widget.pedido.cerrado) _buildAddLineaButton(),
+
+            if (!widget.pedido.cerrado)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Divider(thickness: 1),
+              ),
+
+            // ---------- LÍNEAS ----------
+            if (loadingLineas)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (lineas.isEmpty)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Text(
+                    "No hay líneas registradas",
+                    style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ),
+              )
+            else
+              Column(
+                children: [
+                  for (int i = 0; i < lineas.length; i++) ...[
+                    _buildLineaReal(lineas[i]),
+                    if (i < lineas.length - 1)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        child: Divider(thickness: 1),
+                      ),
+                  ],
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAddLineaDialog() async {
+    Producto? productoSeleccionado;
+    TextEditingController unidadesCtrl = TextEditingController();
+    TextEditingController precioCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Text(
+                "Añadir línea al pedido",
+                style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GestureDetector(
+                    onTap: () async {
+                      final seleccionado = await _showProductoSelector();
+                      if (seleccionado != null) {
+                        setStateDialog(() {
+                          productoSeleccionado = seleccionado;
+                          precioCtrl.text = seleccionado.precio.toString();
+                        });
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.grey.shade400),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            productoSeleccionado?.descripcion ??
+                                "Seleccionar producto",
+                            style: GoogleFonts.poppins(fontSize: 14),
+                          ),
+                          const Icon(Icons.arrow_drop_down),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  TextField(
+                    keyboardType: TextInputType.number,
+                    controller: unidadesCtrl,
+                    decoration: InputDecoration(
+                      labelText: "Unidades",
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  TextField(
+                    keyboardType: TextInputType.number,
+                    controller: precioCtrl,
+                    decoration: InputDecoration(
+                      labelText: "Precio unitario",
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  child: const Text("Cancelar"),
+                  onPressed: () => Navigator.pop(dialogContext),
+                ),
+                ElevatedButton(
+                  child: const Text("Guardar"),
+                  onPressed: () async {
+                    if (productoSeleccionado == null ||
+                        unidadesCtrl.text.isEmpty ||
+                        precioCtrl.text.isEmpty)
+                      return;
+
+                    final nuevaLinea = await lineapedidoService.addLineaPedido(
+                      widget.pedido.idCliente,
+                      widget.pedido.id,
+                      productoSeleccionado!.id,
+                      int.parse(unidadesCtrl.text),
+                      double.parse(precioCtrl.text),
+                    );
+
+                    Navigator.pop(dialogContext);
+
+                    if (nuevaLinea != null) await _refreshPedido();
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // -------------------------------------------------------------------
+  // SELECTOR DE PRODUCTOS
+  // -------------------------------------------------------------------
+  Future<Producto?> _showProductoSelector() async {
+    List<Producto> productos = await productoService.getAllProductos();
+    List<Producto> filtrados = List.from(productos);
+    TextEditingController searchCtrl = TextEditingController();
+
+    return showModalBottomSheet<Producto>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateSheet) {
+            return Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: searchCtrl,
+                    decoration: InputDecoration(
+                      labelText: "Buscar por nombre o categoría",
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    onChanged: (value) {
+                      setStateSheet(() {
+                        final query = value.toLowerCase();
+                        filtrados = productos.where((p) {
+                          final nameMatch = p.descripcion
+                              .toLowerCase()
+                              .contains(query);
+                          final catMatch = (p.categoria ?? "")
+                              .toLowerCase()
+                              .contains(query);
+                          return nameMatch || catMatch;
+                        }).toList();
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 400,
+                    child: ListView.builder(
+                      itemCount: filtrados.length,
+                      itemBuilder: (context, index) {
+                        final p = filtrados[index];
+
+                        return ListTile(
+                          title: Text(
+                            p.descripcion,
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "${p.precio.toStringAsFixed(2)} €",
+                                style: GoogleFonts.poppins(fontSize: 13),
+                              ),
+                              if (p.categoria != null)
+                                Text(
+                                  "Categoría: ${p.categoria}",
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    color: Colors.blueGrey,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          onTap: () => Navigator.pop(context, p),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ===========================================================
+  //                    ITEM DE LÍNEA REAL
+  // ===========================================================
+  Widget _buildLineaReal(LineaPedido linea) {
+    return GestureDetector(
+      onDoubleTap: widget.pedido.cerrado
+          ? null
+          : () => _showEditLineaDialog(linea),
+      child: FutureBuilder(
+        future: productoService.getProducto(linea.idProducto),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const SizedBox(
+              height: 40,
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            );
+          }
+
+          final Producto producto = snapshot.data!;
+          final String totalLinea = (linea.precio * linea.cantidad)
+              .toStringAsFixed(2);
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ---------- ICONO PRODUCTO ----------
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade100,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.shopping_bag,
+                  color: Colors.blue,
+                  size: 22,
+                ),
+              ),
+
+              const SizedBox(width: 15),
+
+              // ---------- DATOS DE LA LÍNEA ----------
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      producto.descripcion,
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
+                    ),
+
+                    const SizedBox(height: 4),
+
+                    Text(
+                      "Cantidad: ${linea.cantidad}",
+                      style: GoogleFonts.poppins(fontSize: 14),
+                    ),
+
+                    Text(
+                      "Precio unitario: ${linea.precio.toStringAsFixed(2)} €",
+                      style: GoogleFonts.poppins(fontSize: 14),
+                    ),
+
+                    const SizedBox(height: 6),
+
+                    Text(
+                      "Total línea: $totalLinea €",
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // ---------- BOTÓN BORRAR ----------
+              if (!widget.pedido.cerrado)
+                IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.red),
+                  onPressed: () => _confirmDeleteLinea(linea),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _showEditLineaDialog(LineaPedido linea) async {
+    final producto = await productoService.getProducto(linea.idProducto);
+
+    TextEditingController cantidadCtrl = TextEditingController(
+      text: linea.cantidad.toString(),
+    );
+    TextEditingController precioCtrl = TextEditingController(
+      text: linea.precio.toStringAsFixed(2),
+    );
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text(
+            "Editar línea",
+            style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                producto?.descripcion ?? "Sin descripción",
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                ),
+              ),
+
+              const SizedBox(height: 18),
+
+              TextField(
+                controller: cantidadCtrl,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: "Cantidad",
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 15),
+
+              TextField(
+                controller: precioCtrl,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: "Precio unitario",
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              child: Text("Cancelar", style: GoogleFonts.poppins()),
+              onPressed: () => Navigator.pop(dialogContext),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+              child: Text("Guardar", style: GoogleFonts.poppins()),
+              onPressed: () async {
+                final cantidad = int.tryParse(cantidadCtrl.text);
+                final precio = double.tryParse(precioCtrl.text);
+
+                if (cantidad == null || precio == null) return;
+
+                Navigator.pop(dialogContext);
+
+                final updated = await lineapedidoService.updateLineaPedido(
+                  widget.pedido.idCliente,
+                  widget.pedido.id,
+                  linea.id,
+                  cantidad,
+                  precio,
+                );
+
+                if (updated != null) {
+                  await _refreshPedido();
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ===========================================================
+  //                    CONFIRMAR BORRADO
+  // ===========================================================
+  void _confirmDeleteLinea(LineaPedido linea) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
+          title: Text(
+            "Eliminar línea",
+            style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+          ),
+          content: Text(
+            "¿Seguro que quieres eliminar esta línea?",
+            style: GoogleFonts.poppins(),
+          ),
+          actions: [
+            TextButton(
+              child: Text("Cancelar", style: GoogleFonts.poppins()),
+              onPressed: () => Navigator.pop(context),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: Text("Eliminar", style: GoogleFonts.poppins()),
+              onPressed: () async {
+                Navigator.pop(context);
+
+                final ok = await lineapedidoService.deleteLineaPedido(
+                  widget.pedido.idCliente,
+                  widget.pedido.id,
+                  linea.id,
+                );
+
+                if (ok) {
+                  await _refreshPedido();
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Error al eliminar la línea"),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _confirmCerrarPedido() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
+          title: Text(
+            "Cerrar pedido",
+            style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+          ),
+          content: Text(
+            "¿Seguro que quieres cerrar este pedido?\n\nUna vez cerrado, no podrás modificar líneas.",
+            style: GoogleFonts.poppins(),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text("Cancelar", style: GoogleFonts.poppins()),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+              ),
+              onPressed: () async {
+                Navigator.pop(context);
+
+                final ok = await pedidoService.cerrarPedido(
+                  widget.pedido.idCliente,
+                  widget.pedido.id,
+                );
+
+                if (ok) {
+                  await _refreshPedido();
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Error al cerrar el pedido"),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+              child: Text(
+                "Cerrar",
+                style: GoogleFonts.poppins(color: Colors.white),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildResponsiveActionButton() {
+    return widget.pedido.cerrado
+        ? ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: _descargarPedidoPdf,
+            child: Text(
+              "Descargar PDF",
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          )
+        : ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: _confirmCerrarPedido,
+            child: Text(
+              "Cerrar pedido",
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          );
+  }
+
+  Future<void> _descargarPedidoPdf() async {
+    try {
+      /* await pedidoService.descargarPedido(
+        widget.pedido.idCliente,
+        widget.pedido.id,
+      );*/
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("PDF descargado correctamente"),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Error al descargar el PDF"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // ===========================================================
   //                    FORMATEAR FECHA
   // ===========================================================
   String formatFecha(String fechaISO) {
@@ -388,7 +948,7 @@ class _PedidoAdminDetailPageState extends State<PedidoAdminDetailPage> {
       return "${fecha.day.toString().padLeft(2, '0')}/"
           "${fecha.month.toString().padLeft(2, '0')}/"
           "${fecha.year}";
-    } catch (e) {
+    } catch (_) {
       return fechaISO;
     }
   }

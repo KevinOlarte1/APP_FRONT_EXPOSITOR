@@ -1,4 +1,9 @@
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:expositor_app/core/services/secure_storage_service.dart';
+import 'package:expositor_app/data/services/cliente_service.dart';
+import 'package:expositor_app/data/services/producto_service.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -10,6 +15,9 @@ import 'package:expositor_app/data/services/categoria_service.dart';
 import 'package:expositor_app/presentation/pages/admin/config/config_vendedor_detail_page.dart';
 import 'package:expositor_app/presentation/widget/config/admin_menu_tile.dart';
 import 'package:expositor_app/presentation/pages/admin/product_admin_page.dart';
+import 'package:expositor_app/core/services/file_saver.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:html' as html;
 
 class ConfigVendedorPage extends StatefulWidget {
   final Vendedor vendedorActual;
@@ -22,6 +30,8 @@ class ConfigVendedorPage extends StatefulWidget {
 
 class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
   final VendedorService vendedorService = VendedorService();
+  final ProductoService productoService = ProductoService();
+  final ClienteService clienteService = ClienteService();
   final CategoriaService categoriaService = CategoriaService();
 
   late TextEditingController nombreCtrl;
@@ -825,7 +835,75 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
             ),
 
             // ---------------------------------------------------
-            // CARD 5 — ADMINISTRAR PRODUCTOS (MODULARIZADO)
+            // CARD 5 — EXPORTACIÓN CSV
+            // ---------------------------------------------------
+            _card(
+              title: "Exportación",
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Descargar datos en formato CSV",
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // BOTÓN EXPORTAR CLIENTES
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.download),
+                      onPressed: _exportClientesCsv,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF3C75EF),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      label: Text(
+                        "Exportar clientes (CSV)",
+                        style: GoogleFonts.poppins(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // BOTÓN EXPORTAR PRODUCTOS
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.download),
+                      onPressed: _exportProductosCsv,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      label: Text(
+                        "Exportar productos (CSV)",
+                        style: GoogleFonts.poppins(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // ---------------------------------------------------
+            // CARD 6 — ADMINISTRAR PRODUCTOS (MODULARIZADO)
             // ---------------------------------------------------
             AdminMenuTile(
               title: "Administrar Productos",
@@ -839,6 +917,49 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _exportClientesCsv() async {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text("Descargando clientes...")));
+
+    final data = await clienteService.getClientesCsv();
+
+    if (data == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Error al descargar CSV")));
+      return;
+    }
+
+    // Guardar archivo en el dispositivo
+    await _saveFile(data, "clientes.csv");
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Clientes exportados correctamente.")),
+    );
+  }
+
+  Future<void> _exportProductosCsv() async {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text("Descargando productos...")));
+
+    final data = await productoService.getProductosCsv();
+
+    if (data == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Error al descargar CSV")));
+      return;
+    }
+
+    await _saveFile(data, "productos.csv");
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Productos exportados correctamente.")),
     );
   }
 
@@ -867,5 +988,23 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text("Valores guardados.")));
+  }
+
+  Future<void> _saveFile(Uint8List bytes, String filename) async {
+    // 👉 Si estamos en WEB: usar descarga del navegador
+    if (kIsWeb) {
+      final blob = html.Blob([bytes]);
+      final url = html.Url.createObjectUrlFromBlob(blob);
+
+      final anchor = html.AnchorElement(href: url)
+        ..setAttribute("download", filename)
+        ..click();
+
+      html.Url.revokeObjectUrl(url);
+      return;
+    }
+
+    // 👉 Si NO es web (Android / iOS)
+    await FileSaver.saveToDownloads(bytes, filename);
   }
 }

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:expositor_app/core/constants/api_constants.dart';
 import 'package:expositor_app/data/models/cliente.dart';
 import 'package:expositor_app/data/services/http_client_jwt.dart';
@@ -59,5 +60,19 @@ class ClienteService {
 
     print("❌ Error getIngresoAnual: ${response.statusCode}");
     return {};
+  }
+
+  /// Descargar CSV de clientes
+  Future<Uint8List?> getClientesCsv() async {
+    final url = Uri.parse("${ApiConstants.clientes}/csv");
+
+    final response = await HttpClientJwt.get(url);
+
+    if (response.statusCode == 200) {
+      return response.bodyBytes; // CSV completo
+    }
+
+    print("❌ Error getClientesCsv: ${response.statusCode}");
+    return null;
   }
 }

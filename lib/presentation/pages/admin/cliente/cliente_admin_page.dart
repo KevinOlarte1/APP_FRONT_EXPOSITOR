@@ -110,88 +110,188 @@ class _ClientesAdminPageState extends State<ClientesAdminPage> {
                 // ===========================================================
                 Padding(
                   padding: const EdgeInsets.only(bottom: 20),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      // TÍTULO FILTRO
-                      Text(
-                        "Filtrar por vendedor",
-                        style: GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      bool isSmall =
+                          constraints.maxWidth <
+                          650; // 🔥 Ajusta aquí si quieres
 
-                      const SizedBox(width: 30),
+                      if (isSmall) {
+                        // ===========================================================
+                        // MODO COLUMNA (pantallas pequeñas)
+                        // ===========================================================
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Filtrar por vendedor",
+                              style: GoogleFonts.poppins(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
 
-                      // BUSCADOR
-                      Expanded(
-                        child: SizedBox(
-                          height: 50,
-                          child: TextField(
-                            controller: _searchCtrl,
-                            onChanged: _filterBySearch,
-                            decoration: InputDecoration(
-                              hintText: "Buscar por nombre o CIF...",
-                              suffixIcon: const Icon(Icons.search),
-                              filled: true,
-                              fillColor: Colors.white,
-                              border: OutlineInputBorder(
+                            const SizedBox(height: 12),
+
+                            // BUSCADOR
+                            SizedBox(
+                              height: 50,
+                              child: TextField(
+                                controller: _searchCtrl,
+                                onChanged: _filterBySearch,
+                                decoration: InputDecoration(
+                                  hintText: "Buscar por nombre o CIF...",
+                                  suffixIcon: const Icon(Icons.search),
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: Colors.grey.shade300,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                            const SizedBox(height: 12),
+
+                            // DROPDOWN VENDEDORES
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
+                              height: 50,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
                                 borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(
-                                  color: Colors.grey.shade300,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.05),
+                                    blurRadius: 10,
+                                  ),
+                                ],
+                              ),
+                              child: DropdownButton<Vendedor?>(
+                                underline: const SizedBox(),
+                                value: selectedVendedor,
+                                hint: Text(
+                                  "Todos los vendedores",
+                                  style: GoogleFonts.poppins(fontSize: 15),
+                                ),
+                                items: [
+                                  DropdownMenuItem(
+                                    value: null,
+                                    child: Text(
+                                      "Todos los vendedores",
+                                      style: GoogleFonts.poppins(fontSize: 15),
+                                    ),
+                                  ),
+                                  ...vendedores.map((v) {
+                                    return DropdownMenuItem(
+                                      value: v,
+                                      child: Text(
+                                        "${v.nombre} ${v.apellido}",
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                    );
+                                  }),
+                                ],
+                                onChanged: (value) => _filterByVendedor(value),
+                              ),
+                            ),
+                          ],
+                        );
+                      }
+
+                      // ===========================================================
+                      // MODO FILA (pantallas grandes)
+                      // ===========================================================
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Text(
+                            "Filtrar por vendedor",
+                            style: GoogleFonts.poppins(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+
+                          const SizedBox(width: 30),
+
+                          // BUSCADOR
+                          Expanded(
+                            child: SizedBox(
+                              height: 50,
+                              child: TextField(
+                                controller: _searchCtrl,
+                                onChanged: _filterBySearch,
+                                decoration: InputDecoration(
+                                  hintText: "Buscar por nombre o CIF...",
+                                  suffixIcon: const Icon(Icons.search),
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: Colors.grey.shade300,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                      ),
 
-                      const SizedBox(width: 30),
+                          const SizedBox(width: 30),
 
-                      // DROPDOWN DE VENDEDORES
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        height: 50,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 10,
+                          // DROPDOWN VENDEDORES
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            height: 50,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 10,
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                        child: DropdownButton<Vendedor?>(
-                          underline: const SizedBox(),
-                          value: selectedVendedor,
-                          hint: Text(
-                            "Todos los vendedores",
-                            style: GoogleFonts.poppins(fontSize: 15),
-                          ),
-                          items: [
-                            DropdownMenuItem(
-                              value: null,
-                              child: Text(
+                            child: DropdownButton<Vendedor?>(
+                              underline: const SizedBox(),
+                              value: selectedVendedor,
+                              hint: Text(
                                 "Todos los vendedores",
                                 style: GoogleFonts.poppins(fontSize: 15),
                               ),
-                            ),
-                            ...vendedores.map((v) {
-                              return DropdownMenuItem(
-                                value: v,
-                                child: Text(
-                                  "${v.nombre} ${v.apellido}",
-                                  style: GoogleFonts.poppins(fontSize: 15),
+                              items: [
+                                DropdownMenuItem(
+                                  value: null,
+                                  child: Text(
+                                    "Todos los vendedores",
+                                    style: GoogleFonts.poppins(fontSize: 15),
+                                  ),
                                 ),
-                              );
-                            }),
-                          ],
-                          onChanged: (value) => _filterByVendedor(value),
-                        ),
-                      ),
-                    ],
+                                ...vendedores.map((v) {
+                                  return DropdownMenuItem(
+                                    value: v,
+                                    child: Text(
+                                      "${v.nombre} ${v.apellido}",
+                                      style: GoogleFonts.poppins(fontSize: 15),
+                                    ),
+                                  );
+                                }),
+                              ],
+                              onChanged: (value) => _filterByVendedor(value),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ),
 
