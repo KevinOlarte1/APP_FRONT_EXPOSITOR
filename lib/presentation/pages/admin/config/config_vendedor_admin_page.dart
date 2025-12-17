@@ -1,9 +1,9 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:expositor_app/core/services/secure_storage_service.dart';
 import 'package:expositor_app/data/services/cliente_service.dart';
 import 'package:expositor_app/data/services/producto_service.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -16,8 +16,10 @@ import 'package:expositor_app/presentation/pages/admin/config/config_vendedor_de
 import 'package:expositor_app/presentation/widget/config/admin_menu_tile.dart';
 import 'package:expositor_app/presentation/pages/admin/product_admin_page.dart';
 import 'package:expositor_app/core/services/file_saver.dart';
+import 'package:expositor_app/data/services/parametros_globales_service.dart';
+import 'package:expositor_app/utils/download/download.dart';
+
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'dart:html' as html;
 
 class ConfigVendedorPage extends StatefulWidget {
   final Vendedor vendedorActual;
@@ -33,17 +35,17 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
   final ProductoService productoService = ProductoService();
   final ClienteService clienteService = ClienteService();
   final CategoriaService categoriaService = CategoriaService();
+  final ParametrosGlobalesService paramService = ParametrosGlobalesService();
 
   late TextEditingController nombreCtrl;
   late TextEditingController apellidoCtrl;
   late TextEditingController emailCtrl;
   final TextEditingController passwordCtrl = TextEditingController();
 
-  final SecureStorageService storage = SecureStorageService();
-
   // Controllers
   late TextEditingController descuentoCtrl;
   late TextEditingController ivaCtrl;
+  late TextEditingController maxGruposCtrl;
 
   bool loadingDefaults = true;
   bool isSaving = false;
@@ -57,6 +59,7 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
 
     descuentoCtrl = TextEditingController();
     ivaCtrl = TextEditingController();
+    maxGruposCtrl = TextEditingController();
 
     _loadPedidoDefaults();
   }
@@ -736,6 +739,12 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
                           controller: ivaCtrl,
                         ),
 
+                        _input(
+                          label: "Máximo de grupos",
+                          placeholder: "1 - 50",
+                          controller: maxGruposCtrl,
+                        ),
+
                         const SizedBox(height: 10),
 
                         SizedBox(
@@ -898,12 +907,153 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 12),
+
+                  // BOTÓN EXPORTAR PEDIDOS
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.download),
+                      onPressed: _exportPedidosCsv,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.deepOrange, // Nuevo color
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      label: Text(
+                        "Exportar pedidos (CSV)",
+                        style: GoogleFonts.poppins(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // BOTÓN EXPORTAR CATEGORÍAS
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.download),
+                      onPressed: _exportCategoriasCsv,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.teal,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      label: Text(
+                        "Exportar categorías (CSV)",
+                        style: GoogleFonts.poppins(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
 
             // ---------------------------------------------------
-            // CARD 6 — ADMINISTRAR PRODUCTOS (MODULARIZADO)
+            // CARD 6— IMPORTACIONES
+            // ---------------------------------------------------
+            _card(
+              title: "Importaciones",
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Subir archivos CSV para cargar productos o clientes al sistema.",
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // BOTÓN — Importar productos
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.upload_file),
+                      onPressed: _importProductosCsv,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      label: Text(
+                        "Importar productos (CSV)",
+                        style: GoogleFonts.poppins(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // BOTÓN — Importar clientes
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.upload_file),
+                      onPressed: _importClientesCsv,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.deepPurple,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      label: Text(
+                        "Importar clientes (CSV)",
+                        style: GoogleFonts.poppins(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // BOTÓN — Importar categorías
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.upload_file),
+                      onPressed: _importCategoriasCsv,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.teal,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      label: Text(
+                        "Importar categorías (CSV)",
+                        style: GoogleFonts.poppins(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // ---------------------------------------------------
+            // CARD 7 — ADMINISTRAR PRODUCTOS (MODULARIZADO)
             // ---------------------------------------------------
             AdminMenuTile(
               title: "Administrar Productos",
@@ -942,6 +1092,49 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
     );
   }
 
+  Future<void> _exportCategoriasCsv() async {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text("Descargando categorías...")));
+
+    final data = await categoriaService.getCategoriasCsv();
+
+    if (data == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Error al descargar CSV")));
+      return;
+    }
+
+    await _saveFile(data, "categorias.csv");
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Categorías exportadas correctamente.")),
+    );
+  }
+
+  Future<void> _exportPedidosCsv() async {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text("Descargando pedidos...")));
+
+    final data = await productoService
+        .getPedidosCsv(); // <-- AÚN lo creamos abajo
+
+    if (data == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Error al descargar CSV")));
+      return;
+    }
+
+    await _saveFile(data, "pedidos.csv");
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Pedidos exportados correctamente.")),
+    );
+  }
+
   Future<void> _exportProductosCsv() async {
     ScaffoldMessenger.of(
       context,
@@ -963,11 +1156,54 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
     );
   }
 
-  Future<void> _loadPedidoDefaults() async {
-    final cfg = await storage.getPedidoDefaults();
+  Future<void> _importCategoriasCsv() async {
+    Uint8List? bytes;
+    String? filename;
 
-    descuentoCtrl.text = cfg["descuento"].toString();
-    ivaCtrl.text = cfg["iva"].toString();
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['csv'],
+      withData: true,
+    );
+
+    if (result == null) return;
+
+    bytes = result.files.first.bytes!;
+    filename = result.files.first.name;
+
+    final ok = await categoriaService.importarCategoriasCsv(bytes, filename);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? "Categorías importadas correctamente"
+              : "Error al importar categorías",
+        ),
+      ),
+    );
+
+    if (ok) {
+      setState(() {}); // refresca la grid de categorías
+    }
+  }
+
+  Future<void> _loadPedidoDefaults() async {
+    try {
+      final cfg = await paramService.getParams();
+
+      print("CONFIG RECIBIDA: $cfg"); // 👈 DEBUG
+
+      descuentoCtrl.text = cfg["descuento"].toString();
+      ivaCtrl.text = cfg["iva"].toString();
+      maxGruposCtrl.text = cfg["grupoMax"].toString();
+    } catch (e) {
+      print("❌ Error cargando parámetros globales: $e"); // 👈 VER ERROR REAL
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Error cargando parámetros globales.")),
+      );
+    }
 
     setState(() => loadingDefaults = false);
   }
@@ -975,36 +1211,110 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
   Future<void> _savePedidoDefaults() async {
     final d = double.tryParse(descuentoCtrl.text) ?? -1;
     final i = double.tryParse(ivaCtrl.text) ?? -1;
+    final g = int.tryParse(maxGruposCtrl.text) ?? -1;
 
     if (d < 0 || d > 100 || i < 0 || i > 100) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Los valores deben estar entre 0 y 100.")),
+        const SnackBar(
+          content: Text("IVA y descuento deben estar entre 0 y 100."),
+        ),
       );
       return;
     }
 
-    await storage.savePedidoDefaults(descuento: d, iva: i);
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text("Valores guardados.")));
-  }
-
-  Future<void> _saveFile(Uint8List bytes, String filename) async {
-    // 👉 Si estamos en WEB: usar descarga del navegador
-    if (kIsWeb) {
-      final blob = html.Blob([bytes]);
-      final url = html.Url.createObjectUrlFromBlob(blob);
-
-      final anchor = html.AnchorElement(href: url)
-        ..setAttribute("download", filename)
-        ..click();
-
-      html.Url.revokeObjectUrl(url);
+    if (g <= 0 || g > 50) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("El máximo de grupos debe estar entre 1 y 50."),
+        ),
+      );
       return;
     }
 
-    // 👉 Si NO es web (Android / iOS)
-    await FileSaver.saveToDownloads(bytes, filename);
+    final ok = await paramService.saveParams(iva: i, descuento: d, grupoMax: g);
+
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Error guardando en el servidor.")),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Valores guardados correctamente.")),
+    );
+  }
+
+  Future<void> _saveFile(Uint8List bytes, String filename) async {
+    await downloadBytes(bytes, filename);
+  }
+
+  Future<void> _importProductosCsv() async {
+    Uint8List? bytes;
+    String? filename;
+
+    if (kIsWeb) {
+      // Usa el archivo web que ya tienes creado (más seguro)
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+        withData: true,
+      );
+      if (result == null) return;
+
+      bytes = result.files.first.bytes;
+      filename = result.files.first.name;
+    } else {
+      // ANDROID / iOS
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+        withData: true,
+      );
+      if (result == null) return;
+
+      bytes = result.files.first.bytes!;
+      filename = result.files.first.name;
+    }
+
+    final ok = await productoService.importarProductosCsv(bytes!, filename!);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? "Productos importados correctamente"
+              : "Error al importar productos",
+        ),
+      ),
+    );
+  }
+
+  Future<void> _importClientesCsv() async {
+    Uint8List? bytes;
+    String? filename;
+
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['csv'],
+      withData: true,
+    );
+
+    if (result == null) return;
+
+    bytes = result.files.first.bytes!;
+    filename = result.files.first.name;
+
+    final ok = await clienteService.importarClientesCsv(bytes, filename);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? "Clientes importados correctamente"
+              : "Error al importar clientes",
+        ),
+      ),
+    );
   }
 }

@@ -4,6 +4,7 @@ class LineaPedido {
   final int idProducto;
   final int cantidad;
   final double precio;
+  final int grupo; // <-- NUEVO CAMPO
 
   LineaPedido({
     required this.id,
@@ -11,6 +12,7 @@ class LineaPedido {
     required this.idProducto,
     required this.cantidad,
     required this.precio,
+    required this.grupo, // <-- AÑADIDO
   });
 
   factory LineaPedido.fromJson(Map<String, dynamic> json) {
@@ -20,6 +22,7 @@ class LineaPedido {
       idProducto: json["idProducto"],
       cantidad: json["cantidad"],
       precio: json["precio"].toDouble(),
+      grupo: json["grupo"] ?? 1, // <-- AÑADIDO (si viene null asigna 1)
     );
   }
 }

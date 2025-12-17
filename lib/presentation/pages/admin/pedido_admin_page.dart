@@ -1,3 +1,4 @@
+import 'package:expositor_app/data/services/parametros_globales_service.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -25,20 +26,53 @@ class _PedidoAdminDetailPageState extends State<PedidoAdminDetailPage> {
   final PedidoService pedidoService = PedidoService();
   final LineaPedidoService lineapedidoService = LineaPedidoService();
   final ProductoService productoService = ProductoService();
+  final ParametrosGlobalesService paramService = ParametrosGlobalesService();
 
   Cliente? cliente;
   List<LineaPedido> lineas = [];
   bool loadingLineas = true;
+  int? filtroGrupo = null; // null = sin filtro
+  List<LineaPedido> lineasFiltradas = [];
+  int grupoMaxConfig = 1; // Para construir el selector
 
   @override
   void initState() {
     super.initState();
+
+    print("Pedido entrado -------------------------");
+    print("idPedido: ${widget.pedido.id}");
+    print("Lineas");
+    for (int i in widget.pedido.idLineaPedido) {
+      print(i);
+    }
+
     _loadAll();
   }
 
   Future<void> _loadAll() async {
+    print("Entra");
+    setState(() {
+      loadingLineas = true;
+    });
+    print("Entra1");
+
     await _loadCliente();
+
     await _loadLineasPedido();
+
+    grupoMaxConfig = await paramService.getGrupoMax();
+
+    _aplicarFiltro();
+  }
+
+  void _aplicarFiltro() {
+    setState(() {
+      if (filtroGrupo == null) {
+        lineasFiltradas = List.from(lineas);
+      } else {
+        lineasFiltradas = lineas.where((l) => l.grupo == filtroGrupo).toList();
+      }
+    });
   }
 
   // CARGAR CLIENTE
@@ -60,6 +94,8 @@ class _PedidoAdminDetailPageState extends State<PedidoAdminDetailPage> {
       lineas = result;
       loadingLineas = false;
     });
+
+    _aplicarFiltro();
   }
 
   // REFRESCAR PEDIDO + LÍNEAS + CLIENTE
@@ -315,6 +351,55 @@ class _PedidoAdminDetailPageState extends State<PedidoAdminDetailPage> {
 
                       const SizedBox(height: 10),
 
+                      // ------------------ FILTRO POR GRUPO ------------------
+                      // ------------------ FILTRO POR GRUPO ------------------
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Colors.grey.shade400,
+                            width: 1,
+                          ),
+                          color: Colors.grey.shade100,
+                        ),
+                        width: 160, // Caja pequeña elegante
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<int?>(
+                            value: filtroGrupo,
+                            isExpanded: true,
+                            icon: const Icon(Icons.arrow_drop_down, size: 20),
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              color: Colors.black87,
+                            ),
+                            items: [
+                              const DropdownMenuItem(
+                                value: null,
+                                child: Text("Todos"),
+                              ),
+                              ...List.generate(
+                                grupoMaxConfig,
+                                (i) => DropdownMenuItem(
+                                  value: i + 1,
+                                  child: Text("Grupo ${i + 1}"),
+                                ),
+                              ),
+                            ],
+                            onChanged: (value) {
+                              setState(() {
+                                filtroGrupo = value; // cambia filtro
+                                _aplicarFiltro(); // actualiza lista filtrada
+                              });
+                            },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
                       // ---------- BOTÓN PARA PANTALLAS PEQUEÑAS ----------
                       if (MediaQuery.of(context).size.width < 500)
                         _buildResponsiveActionButton(),
@@ -363,9 +448,9 @@ class _PedidoAdminDetailPageState extends State<PedidoAdminDetailPage> {
             else
               Column(
                 children: [
-                  for (int i = 0; i < lineas.length; i++) ...[
-                    _buildLineaReal(lineas[i]),
-                    if (i < lineas.length - 1)
+                  for (int i = 0; i < lineasFiltradas.length; i++) ...[
+                    _buildLineaReal(lineasFiltradas[i]),
+                    if (i < lineasFiltradas.length - 1)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 16),
                         child: Divider(thickness: 1),
@@ -384,6 +469,10 @@ class _PedidoAdminDetailPageState extends State<PedidoAdminDetailPage> {
     TextEditingController unidadesCtrl = TextEditingController();
     TextEditingController precioCtrl = TextEditingController();
 
+    int grupoSeleccionado = filtroGrupo ?? 1;
+    int grupoMax = 1;
+
+    grupoMax = await paramService.getGrupoMax();
     showDialog(
       context: context,
       builder: (dialogContext) {
@@ -454,6 +543,29 @@ class _PedidoAdminDetailPageState extends State<PedidoAdminDetailPage> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 20),
+
+                  DropdownButtonFormField<int>(
+                    value: grupoSeleccionado,
+                    decoration: InputDecoration(
+                      labelText: "Grupo",
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    items: List.generate(
+                      grupoMax,
+                      (i) => DropdownMenuItem(
+                        value: i + 1,
+                        child: Text("Grupo ${i + 1}"),
+                      ),
+                    ),
+                    onChanged: (value) {
+                      setStateDialog(() {
+                        grupoSeleccionado = value!;
+                      });
+                    },
+                  ),
                 ],
               ),
               actions: [
@@ -475,6 +587,7 @@ class _PedidoAdminDetailPageState extends State<PedidoAdminDetailPage> {
                       productoSeleccionado!.id,
                       int.parse(unidadesCtrl.text),
                       double.parse(precioCtrl.text),
+                      grupoSeleccionado,
                     );
 
                     Navigator.pop(dialogContext);

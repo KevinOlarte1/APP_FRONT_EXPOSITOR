@@ -38,15 +38,7 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsAdminPage> {
   // CREAR PEDIDO USANDO VALORES POR DEFECTO (IVA + DESCUENTO)
   // ============================================================
   Future<void> _crearPedido() async {
-    final defaults = await secureStorage.getPedidoDefaults();
-    final descuento = defaults["descuento"]!.toInt();
-    final iva = defaults["iva"]!.toInt();
-
-    final nuevo = await pedidoService.addPedido(
-      idCliente: widget.cliente.id,
-      descuento: descuento,
-      iva: iva,
-    );
+    final nuevo = await pedidoService.addPedido(idCliente: widget.cliente.id);
 
     if (nuevo == null) {
       ScaffoldMessenger.of(

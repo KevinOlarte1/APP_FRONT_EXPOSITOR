@@ -28,21 +28,26 @@ class LineaPedidoService {
     int idProducto,
     int cantidad,
     double precio,
+    int grupo,
   ) async {
     final url = Uri.parse(
       "${ApiConstants.clientes}/$idCliente/pedido/$idPedido/linea",
     );
-
+    print("Obtener Lineas de los pedidos");
     final body = jsonEncode({
       "idProducto": idProducto,
       "cantidad": cantidad,
       "precio": precio,
+      "grupo": grupo,
     });
 
     final response = await HttpClientJwt.post(url, body: body);
 
+    print("Antes del codigo ");
     if (response.statusCode == 200 || response.statusCode == 201) {
       final data = jsonDecode(response.body);
+      print("Code");
+      print(data);
       return LineaPedido.fromJson(data);
     }
 

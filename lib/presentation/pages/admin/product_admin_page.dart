@@ -199,6 +199,7 @@ class _ProductAdminPageState extends State<ProductAdminPage> {
                               _HeaderCell("NOMBRE", flex: 4),
                               _HeaderCell("PRECIO UNITARIO", flex: 3),
                               _HeaderCell("CATEGORÍA", flex: 3),
+                              _HeaderCell("", flex: 1),
                             ],
                           ),
                         ),
@@ -238,6 +239,17 @@ class _ProductAdminPageState extends State<ProductAdminPage> {
                                       _RowCell(p.descripcion, flex: 4),
                                       _RowCell("${p.precio} €", flex: 3),
                                       _RowCell(categoriaStr, flex: 3),
+                                      Expanded(
+                                        flex: 1,
+                                        child: IconButton(
+                                          icon: const Icon(
+                                            Icons.delete_outline,
+                                            color: Colors.red,
+                                          ),
+                                          tooltip: "Eliminar producto",
+                                          onPressed: () => _deleteProducto(p),
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -255,6 +267,44 @@ class _ProductAdminPageState extends State<ProductAdminPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _deleteProducto(Producto p) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Eliminar producto"),
+        content: Text(
+          "¿Seguro que quieres eliminar el producto \"${p.descripcion}\"?",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancelar"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Eliminar"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    final ok = await _productoService.deleteProducto(p.id);
+
+    if (ok) {
+      setState(() {
+        _all.removeWhere((e) => e.id == p.id);
+        _filtered.removeWhere((e) => e.id == p.id);
+      });
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Producto eliminado")));
+    }
   }
 }
 

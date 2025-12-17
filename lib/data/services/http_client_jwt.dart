@@ -28,6 +28,42 @@ class HttpClientJwt {
     return _send(() async => http.delete(url, headers: await _headers()));
   }
 
+  static Future<http.StreamedResponse> postMultipart(
+    Uri url,
+    http.MultipartRequest request,
+  ) async {
+    // Añadir token manualmente porque _headers() impone JSON
+    final token = await _storage.getAccessToken();
+    request.headers["Authorization"] = "Bearer $token";
+
+    // Ejecutar la petición
+    http.StreamedResponse response = await request.send();
+
+    // Si NO es 401 -> devolvemos
+    if (response.statusCode != 401) return response;
+
+    print("⚠️ TOKEN EXPIRED — Intentando refresh (multipart)…");
+
+    // Intentar refrescar tokens
+    final refreshed = await AuthService.refresh();
+
+    if (!refreshed) {
+      print("❌ Refresh falló. Sesión expirada.");
+      return response;
+    }
+
+    print("🔄 Refresh OK — Reintentando petición multipart…");
+
+    // Crear nuevo request (hay que reconstruirlo!)
+    final retryRequest = http.MultipartRequest(request.method, url)
+      ..files.addAll(request.files);
+
+    retryRequest.headers["Authorization"] =
+        "Bearer ${await _storage.getAccessToken()}";
+
+    return await retryRequest.send();
+  }
+
   // =====================================================
   //   🔥 LÓGICA CENTRAL: REFRESH TOKEN AUTOMÁTICO
   // =====================================================

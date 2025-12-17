@@ -5,16 +5,10 @@ import 'package:expositor_app/data/services/http_client_jwt.dart';
 
 class PedidoService {
   /// Crear un nuevo pedido
-  Future<Pedido?> addPedido({
-    required int idCliente,
-    required int descuento,
-    required int iva,
-  }) async {
+  Future<Pedido?> addPedido({required int idCliente}) async {
     final url = Uri.parse("${ApiConstants.clientes}/$idCliente/pedido/admin");
 
-    final body = jsonEncode({"descuento": descuento, "iva": iva});
-
-    final response = await HttpClientJwt.post(url, body: body);
+    final response = await HttpClientJwt.post(url);
 
     if (response.statusCode == 200 || response.statusCode == 201) {
       final jsonData = jsonDecode(response.body);

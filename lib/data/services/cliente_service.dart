@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:expositor_app/core/constants/api_constants.dart';
 import 'package:expositor_app/data/models/cliente.dart';
 import 'package:expositor_app/data/services/http_client_jwt.dart';
+import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 
 class ClienteService {
   /// Obtener todos los clientes (modo admin)
@@ -64,7 +66,7 @@ class ClienteService {
 
   /// Descargar CSV de clientes
   Future<Uint8List?> getClientesCsv() async {
-    final url = Uri.parse("${ApiConstants.clientes}/csv");
+    final url = Uri.parse("${ApiConstants.config}/export/clientes");
 
     final response = await HttpClientJwt.get(url);
 
@@ -74,5 +76,24 @@ class ClienteService {
 
     print("❌ Error getClientesCsv: ${response.statusCode}");
     return null;
+  }
+
+  Future<bool> importarClientesCsv(Uint8List bytes, String filename) async {
+    final uri = Uri.parse("${ApiConstants.config}/import/clientes");
+
+    final request = http.MultipartRequest("POST", uri);
+
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        'file',
+        bytes,
+        filename: filename,
+        contentType: MediaType('text', 'csv'),
+      ),
+    );
+
+    final response = await HttpClientJwt.postMultipart(uri, request);
+
+    return response.statusCode == 200;
   }
 }

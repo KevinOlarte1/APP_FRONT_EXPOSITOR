@@ -1,3 +1,7 @@
+import 'dart:typed_data';
+
+import 'package:expositor_app/core/constants/api_constants.dart';
+
 import '../enums/categoria_product.dart';
 
 class Producto {

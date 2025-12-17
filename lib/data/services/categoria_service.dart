@@ -1,7 +1,8 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:expositor_app/data/services/http_client_jwt.dart';
 import 'package:http/http.dart' as http;
-
+import 'package:http_parser/http_parser.dart';
 import '../models/categoria.dart';
 import 'package:expositor_app/core/constants/api_constants.dart';
 
@@ -56,6 +57,36 @@ class CategoriaService {
     }
 
     print("❌ Error al crear categoría: ${response.statusCode}");
+    return null;
+  }
+
+  Future<bool> importarCategoriasCsv(Uint8List bytes, String filename) async {
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('${ApiConstants.config}/import/categorias'),
+    );
+
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        'file',
+        bytes,
+        filename: filename,
+        contentType: MediaType('text', 'csv'),
+      ),
+    );
+
+    final streamed = await request.send();
+    return streamed.statusCode == 200;
+  }
+
+  Future<Uint8List?> getCategoriasCsv() async {
+    final res = await HttpClientJwt.get(
+      Uri.parse('${ApiConstants.config}/export/categorias'),
+    );
+
+    if (res.statusCode == 200) {
+      return res.bodyBytes;
+    }
     return null;
   }
 }
