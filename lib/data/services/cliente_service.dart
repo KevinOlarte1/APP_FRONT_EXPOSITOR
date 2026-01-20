@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:expositor_app/core/constants/api_constants.dart';
+import 'package:expositor_app/core/session/session.dart';
 import 'package:expositor_app/data/models/cliente.dart';
 import 'package:expositor_app/data/services/http_client_jwt.dart';
 import 'package:http/http.dart' as http;
@@ -9,7 +10,12 @@ import 'package:http_parser/http_parser.dart';
 class ClienteService {
   /// Obtener todos los clientes (modo admin)
   Future<List<Cliente>> getAllClientes() async {
-    final url = Uri.parse("${ApiConstants.clientes}/admin");
+    final url;
+    if (Session.isAdmin) {
+      url = Uri.parse("${ApiConstants.clientes}/admin");
+    } else {
+      url = Uri.parse(ApiConstants.clientes);
+    }
 
     final response = await HttpClientJwt.get(url);
 

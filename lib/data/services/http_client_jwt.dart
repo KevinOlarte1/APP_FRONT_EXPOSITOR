@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:expositor_app/core/session/session.dart';
 import 'package:http/http.dart' as http;
 import 'package:expositor_app/core/services/secure_storage_service.dart';
 import 'package:expositor_app/data/services/auth_service.dart';
@@ -9,23 +10,19 @@ class HttpClientJwt {
   // ---- PETICIONES PÚBLICAS ----
 
   static Future<http.Response> get(Uri url) async {
-    return _send(() async => http.get(url, headers: await _headers()));
+    return _send(() async => http.get(url, headers: _headers()));
   }
 
   static Future<http.Response> post(Uri url, {Object? body}) async {
-    return _send(
-      () async => http.post(url, headers: await _headers(), body: body),
-    );
+    return _send(() async => http.post(url, headers: _headers(), body: body));
   }
 
   static Future<http.Response> put(Uri url, {Object? body}) async {
-    return _send(
-      () async => http.put(url, headers: await _headers(), body: body),
-    );
+    return _send(() async => http.put(url, headers: _headers(), body: body));
   }
 
   static Future<http.Response> delete(Uri url) async {
-    return _send(() async => http.delete(url, headers: await _headers()));
+    return _send(() async => http.delete(url, headers: _headers()));
   }
 
   static Future<http.StreamedResponse> postMultipart(
@@ -33,7 +30,7 @@ class HttpClientJwt {
     http.MultipartRequest request,
   ) async {
     // Añadir token manualmente porque _headers() impone JSON
-    final token = await _storage.getAccessToken();
+    final token = Session.token;
     request.headers["Authorization"] = "Bearer $token";
 
     // Ejecutar la petición
@@ -58,8 +55,7 @@ class HttpClientJwt {
     final retryRequest = http.MultipartRequest(request.method, url)
       ..files.addAll(request.files);
 
-    retryRequest.headers["Authorization"] =
-        "Bearer ${await _storage.getAccessToken()}";
+    retryRequest.headers["Authorization"] = "Bearer ${Session.token}";
 
     return await retryRequest.send();
   }
@@ -93,11 +89,11 @@ class HttpClientJwt {
   }
 
   // Headers con token actualizado
-  static Future<Map<String, String>> _headers() async {
-    final token = await _storage.getAccessToken();
+  static Map<String, String> _headers() {
+    final token = Session.token;
 
     return {
-      "Authorization": "Bearer $token",
+      if (token != null) "Authorization": "Bearer $token",
       "Content-Type": "application/json",
     };
   }

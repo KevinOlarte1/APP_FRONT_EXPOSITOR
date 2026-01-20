@@ -74,7 +74,7 @@ class ProductoService {
 
   /// Descargar CSV de productos
   Future<Uint8List?> getProductosCsv() async {
-    final url = Uri.parse("${ApiConstants.config}/export/pedidos");
+    final url = Uri.parse("${ApiConstants.config}/export/productos");
 
     final response = await HttpClientJwt.get(url);
 

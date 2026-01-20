@@ -9,16 +9,21 @@ import 'package:expositor_app/data/services/vendedor_service.dart';
 import 'package:expositor_app/presentation/widget/cards/cliente_card.dart';
 import 'package:expositor_app/presentation/pages/admin/cliente/cliente_details_admin_page.dart';
 
-class ClientesAdminPage extends StatefulWidget {
-  const ClientesAdminPage({super.key});
+// ✅ NUEVO: Session para saber si es admin
+import 'package:expositor_app/core/session/session.dart';
+
+class ClientesPage extends StatefulWidget {
+  const ClientesPage({super.key});
 
   @override
-  State<ClientesAdminPage> createState() => _ClientesAdminPageState();
+  State<ClientesPage> createState() => _ClientesAdminPageState();
 }
 
-class _ClientesAdminPageState extends State<ClientesAdminPage> {
+class _ClientesAdminPageState extends State<ClientesPage> {
   final ClienteService _clienteService = ClienteService();
   final VendedorService _vendedorService = VendedorService();
+
+  final bool _isAdmin = Session.isAdmin;
 
   List<Cliente> allClients = [];
   List<Cliente> filteredClients = [];
@@ -35,26 +40,38 @@ class _ClientesAdminPageState extends State<ClientesAdminPage> {
   }
 
   Future<void> _loadAll() async {
+    // ✅ Siempre cargamos clientes
     final lClientes = await _clienteService.getAllClientes();
-    final lVendedores = await _vendedorService.getVendedores();
 
-    setState(() {
-      allClients = lClientes;
-      filteredClients = lClientes;
-      vendedores = lVendedores;
-    });
+    // ✅ SOLO ADMIN carga vendedores
+    if (_isAdmin) {
+      final lVendedores = await _vendedorService.getVendedores();
+
+      setState(() {
+        allClients = lClientes;
+        filteredClients = lClientes;
+        vendedores = lVendedores;
+      });
+    } else {
+      setState(() {
+        allClients = lClientes;
+        filteredClients = lClientes;
+        vendedores = []; // por claridad
+        selectedVendedor = null;
+      });
+    }
   }
 
   // ------------------------
   // APLICAR FILTROS COMBINADOS
   // ------------------------
   void _applyFilters() {
-    String q = _searchCtrl.text.toLowerCase().trim();
+    final q = _searchCtrl.text.toLowerCase().trim();
 
     List<Cliente> baseList;
 
-    // Filtro por vendedor
-    if (selectedVendedor != null) {
+    // ✅ Filtro por vendedor SOLO si es admin
+    if (_isAdmin && selectedVendedor != null) {
       baseList = allClients
           .where((c) => c.idVendedor == selectedVendedor!.id)
           .toList();
@@ -90,15 +107,14 @@ class _ClientesAdminPageState extends State<ClientesAdminPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF3F5FB),
-
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            double width = constraints.maxWidth;
+            final width = constraints.maxWidth;
 
             // Tamaño responsive
-            double maxTileWidth = 260;
+            const maxTileWidth = 260.0;
             int crossAxisCount = (width / maxTileWidth).floor();
             if (crossAxisCount < 1) crossAxisCount = 1;
 
@@ -106,20 +122,44 @@ class _ClientesAdminPageState extends State<ClientesAdminPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // ===========================================================
-                // FILTRO + BUSCADOR + DROPDOWN EN UNA MISMA FILA
+                // FILTRO + BUSCADOR + (DROPDOWN SOLO ADMIN)
                 // ===========================================================
                 Padding(
                   padding: const EdgeInsets.only(bottom: 20),
                   child: LayoutBuilder(
                     builder: (context, constraints) {
-                      bool isSmall =
-                          constraints.maxWidth <
-                          650; // 🔥 Ajusta aquí si quieres
+                      final bool isSmall = constraints.maxWidth < 650;
 
+                      // ==========================
+                      // USER (NO ADMIN): SOLO BUSCADOR
+                      // ==========================
+                      if (!_isAdmin) {
+                        return SizedBox(
+                          height: 50,
+                          child: TextField(
+                            controller: _searchCtrl,
+                            onChanged: _filterBySearch,
+                            decoration: InputDecoration(
+                              hintText: "Buscar por nombre o CIF...",
+                              suffixIcon: const Icon(Icons.search),
+                              filled: true,
+                              fillColor: Colors.white,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: Colors.grey.shade300,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+
+                      // ==========================
+                      // ADMIN: BUSCADOR + DROPDOWN
+                      // ==========================
                       if (isSmall) {
-                        // ===========================================================
                         // MODO COLUMNA (pantallas pequeñas)
-                        // ===========================================================
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -130,7 +170,6 @@ class _ClientesAdminPageState extends State<ClientesAdminPage> {
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
-
                             const SizedBox(height: 12),
 
                             // BUSCADOR
@@ -156,7 +195,7 @@ class _ClientesAdminPageState extends State<ClientesAdminPage> {
 
                             const SizedBox(height: 12),
 
-                            // DROPDOWN VENDEDORES
+                            // DROPDOWN VENDEDORES (ADMIN)
                             Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 16,
@@ -206,9 +245,7 @@ class _ClientesAdminPageState extends State<ClientesAdminPage> {
                         );
                       }
 
-                      // ===========================================================
                       // MODO FILA (pantallas grandes)
-                      // ===========================================================
                       return Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
@@ -219,7 +256,6 @@ class _ClientesAdminPageState extends State<ClientesAdminPage> {
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-
                           const SizedBox(width: 30),
 
                           // BUSCADOR
@@ -247,7 +283,7 @@ class _ClientesAdminPageState extends State<ClientesAdminPage> {
 
                           const SizedBox(width: 30),
 
-                          // DROPDOWN VENDEDORES
+                          // DROPDOWN VENDEDORES (ADMIN)
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             height: 50,
@@ -313,7 +349,7 @@ class _ClientesAdminPageState extends State<ClientesAdminPage> {
                                 crossAxisCount: crossAxisCount,
                                 crossAxisSpacing: 20,
                                 mainAxisSpacing: 20,
-                                childAspectRatio: 0.80, // cartas compactas
+                                childAspectRatio: 0.80,
                               ),
                           itemCount: filteredClients.length,
                           itemBuilder: (context, index) {

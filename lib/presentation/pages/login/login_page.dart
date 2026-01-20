@@ -1,3 +1,5 @@
+import 'package:expositor_app/core/constants/api_constants.dart';
+import 'package:expositor_app/core/session/session.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -45,34 +47,17 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = false);
 
     if (response != null && context.mounted) {
-      // ✅ Obtener datos del vendedor
-      final vendedor = await _vendedorService.getMe();
-      if (vendedor == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error al obtener perfil')),
-        );
-        return;
-      }
-
-      if (vendedor.role.contains("ADMIN")) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => HomeAdminPage(vendedorActual: vendedor),
-          ),
-        );
-      } else {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => HomeUserPage(vendedorActual: vendedor),
-          ),
-        );
-      }
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              Session.isAdmin ? const HomeAdminPage() : const HomeUserPage(),
+        ),
+      );
     } else {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Credenciales inválidas')));
+      ).showSnackBar(SnackBar(content: Text(ApiConstants.msgtmp)));
     }
   }
 
@@ -85,7 +70,7 @@ class _LoginPageState extends State<LoginPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const AuthHeader(
-              title: '¡Bienvenido!',
+              title: '¡Bienvienido!',
               subtitle: 'Por favor ingrese sus credenciales.',
             ),
             const SizedBox(height: 32),

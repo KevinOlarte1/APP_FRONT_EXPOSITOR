@@ -22,7 +22,9 @@ class _VendorCardState extends State<VendorCard> {
   void initState() {
     super.initState();
     // Cargar pedidos del vendedor cuando la tarjeta se construye
-    futurePedidos = vendedorService.getNumPedidos(widget.vendedor.id);
+    futurePedidos = vendedorService.getNumPedidos(
+      idVendedor: widget.vendedor.id,
+    );
   }
 
   @override

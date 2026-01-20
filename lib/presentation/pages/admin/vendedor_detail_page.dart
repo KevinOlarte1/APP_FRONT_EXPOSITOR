@@ -1,3 +1,4 @@
+import 'package:expositor_app/core/session/session.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -8,9 +9,13 @@ import 'package:expositor_app/data/services/vendedor_service.dart';
 
 class VendedorDetailPage extends StatefulWidget {
   final Vendedor vendedor;
+  final int title;
 
-  const VendedorDetailPage({super.key, required this.vendedor});
-
+  const VendedorDetailPage({
+    super.key,
+    required this.vendedor,
+    required this.title,
+  });
   @override
   State<VendedorDetailPage> createState() => _VendedorDetailPageState();
 }
@@ -26,30 +31,40 @@ class _VendedorDetailPageState extends State<VendedorDetailPage> {
   void initState() {
     super.initState();
 
+    // Si es admin y la page viene como "admin view" (title == 1), usamos idVendedor
+    // Si es user (o title == 0), NO usamos idVendedor
+    final int? idVendedor = (Session.isAdmin) ? widget.vendedor.id : null;
+
     futureCategorias = vendedorService.getStatsProductsByCategory(
-      widget.vendedor.id,
+      idVendedor: idVendedor,
     );
-
     futureGastosPorCliente = vendedorService.getIngresoAnualByCliente(
-      widget.vendedor.id,
+      idVendedor: idVendedor,
     );
-
-    futurePedidos = vendedorService.getNumPedidos(widget.vendedor.id);
+    futurePedidos = vendedorService.getNumPedidos(idVendedor: idVendedor);
   }
 
   @override
   Widget build(BuildContext context) {
+    print("---------------------");
+    print(widget.title);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF3F5FB),
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: const Color(0xFF3C75EF),
-        centerTitle: false,
-        title: Text(
-          widget.vendedor.nombre,
-          style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 20),
-        ),
-      ),
+      appBar: widget.title == 1
+          ? AppBar(
+              elevation: 0,
+              backgroundColor: const Color(0xFF3C75EF),
+              centerTitle: false,
+              title: Text(
+                widget.vendedor.nombre,
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20,
+                ),
+              ),
+            )
+          : null,
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.all(20),

@@ -1,4 +1,6 @@
 import 'package:expositor_app/core/constants/app_colors.dart';
+import 'package:expositor_app/core/session/session.dart';
+import 'package:expositor_app/data/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'presentation/pages/login/login_page.dart';
@@ -10,23 +12,22 @@ import 'data/services/vendedor_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final storage = SecureStorageService();
-  final token = await storage.getAccessToken();
-  Widget initialPage = const LoginPage();
-  if (token != null) {
-    final vendedorService = VendedorService();
-    final Vendedor? vendedor = await vendedorService.getMe();
 
-    if (vendedor != null) {
-      if (vendedor.role.toUpperCase().contains("ADMIN")) {
-        initialPage = HomeAdminPage(vendedorActual: vendedor);
-      } else {
-        initialPage = HomeUserPage(vendedorActual: vendedor);
-      }
+  //Cargar Session desde storage
+  await AuthService.hydrateSession();
+  Widget initialPage = const LoginPage();
+
+  //Decidir esta logged
+  if (Session.isLoggedIn) {
+    if (Session.isAdmin) {
+      initialPage = const HomeAdminPage();
     } else {
-      // Token inválido o expirado → limpiamos
-      await storage.clearTokens();
+      initialPage = const HomeUserPage();
     }
+  } else {
+    // (opcional) si quieres limpiar por seguridad
+    final storage = SecureStorageService();
+    await storage.clearAll();
   }
 
   runApp(MyApp(initialPage: initialPage));

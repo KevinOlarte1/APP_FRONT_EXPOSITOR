@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:expositor_app/core/constants/api_constants.dart';
-import 'package:expositor_app/data/services/http_client_jwt.dart'; // <── IMPORTANTE
+import 'package:expositor_app/data/services/http_client_jwt.dart';
 
 class ParametrosGlobalesService {
   /// GET /api/config
@@ -24,7 +24,7 @@ class ParametrosGlobalesService {
     required double descuento,
     required int grupoMax,
   }) async {
-    final url = Uri.parse("${ApiConstants.baseUrl}/api/config");
+    final url = Uri.parse("${ApiConstants.baseUrl}/config");
 
     final body = jsonEncode({
       "iva": iva,
@@ -38,7 +38,7 @@ class ParametrosGlobalesService {
   }
 
   Future<int> getIVA() async {
-    final url = Uri.parse("${ApiConstants.baseUrl}/api/config/iva");
+    final url = Uri.parse("${ApiConstants.baseUrl}/config/iva");
 
     final response = await HttpClientJwt.get(url);
 
@@ -54,7 +54,7 @@ class ParametrosGlobalesService {
   }
 
   Future<int> getDescuento() async {
-    final url = Uri.parse("${ApiConstants.baseUrl}/api/config/descuento");
+    final url = Uri.parse("${ApiConstants.baseUrl}/config/descuento");
 
     final response = await HttpClientJwt.get(url);
 

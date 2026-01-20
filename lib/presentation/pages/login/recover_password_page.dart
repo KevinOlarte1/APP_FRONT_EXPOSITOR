@@ -48,7 +48,7 @@ class RecoverPasswordPage extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const AuthHeader(
-              title: 'Recuperar contraseña',
+              title: 'Recuperar 2 contraseña',
               subtitle: 'Ingrese su correo para recibir el código.',
               icon: Icons.email_outlined,
             ),

@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 
 import 'package:expositor_app/core/constants/api_constants.dart';
 import 'package:expositor_app/core/services/secure_storage_service.dart';
+import 'package:expositor_app/core/session/session.dart';
 
 import '../dto/login_request.dart';
 import '../dto/login_response.dart';
@@ -37,15 +38,50 @@ class AuthService {
           loginResponse.refreshToken,
         );
 
+        // ✅ Guardar token en Session
+        Session.token = loginResponse.accessToken;
+
+        // ✅ Sacar role del JWT (si existe) y guardarlo
+        final role = _extractRoleFromJwt(loginResponse.accessToken);
+        Session.role = role;
+
+        if (role != null && role.isNotEmpty) {
+          await _storage.saveRole(role);
+        }
+
         print("🔐 Tokens guardados correctamente.");
+        print("👤 Role detectado: ${Session.role}");
+
         return loginResponse;
       } else {
         print("❌ Error ${response.statusCode}: ${response.body}");
+        ApiConstants.msgtmp =
+            "11❌ Error ${response.statusCode}: ${response.body}";
         return null;
       }
     } catch (e) {
-      print("⚠️ Error de conexión: $e");
+      print("11⚠️ Error de conexión: $e");
+      ApiConstants.msgtmp = "11⚠️ Error de conexión: $e";
       return null;
+    }
+  }
+
+  // ============================================================
+  // ✅ NUEVO: Restaurar role (y token si quieres) en Session desde storage
+  // Útil para Splash / arranque de la app
+  // ============================================================
+  static Future<void> hydrateSession() async {
+    final access = await _staticStorage.getAccessToken();
+    final role = await _staticStorage.getRole();
+
+    if (access != null && access.isNotEmpty) {
+      Session.token = access;
+      // Si role no está guardado, intentamos extraerlo del JWT
+      Session.role = (role != null && role.isNotEmpty)
+          ? role
+          : _extractRoleFromJwt(access);
+    } else {
+      Session.clear();
     }
   }
 
@@ -54,6 +90,7 @@ class AuthService {
   // ============================================================
   Future<bool> forgotPassword(String email) async {
     final url = Uri.parse("${ApiConstants.auth}/forgot-password");
+    print(url);
 
     try {
       final response = await http.post(
@@ -108,7 +145,7 @@ class AuthService {
   }
 
   // ============================================================
-  // 💠 REFRESH TOKEN (AHORA ESTÁTICO PARA HttpClientJwt)
+  // 💠 REFRESH TOKEN (ESTÁTICO PARA HttpClientJwt)
   // ============================================================
   static Future<bool> refresh() async {
     final refreshToken = await _staticStorage.getRefreshToken();
@@ -136,6 +173,18 @@ class AuthService {
         if (newAccess != null && newRefresh != null) {
           await _staticStorage.saveTokens(newAccess, newRefresh);
           print("🔄 Tokens refrescados correctamente.");
+
+          // ✅ Actualizar Session
+          Session.token = newAccess;
+
+          // ✅ Actualizar role (si viene en el JWT) y persistirlo
+          final role = _extractRoleFromJwt(newAccess);
+          Session.role = role;
+
+          if (role != null && role.isNotEmpty) {
+            await _staticStorage.saveRole(role);
+          }
+
           return true;
         }
       } else {
@@ -148,5 +197,48 @@ class AuthService {
     }
 
     return false;
+  }
+
+  // ============================================================
+  // ✅ Helpers JWT -> role (mínimo, sin librerías)
+  // ============================================================
+  static String? _extractRoleFromJwt(String jwt) {
+    try {
+      final parts = jwt.split('.');
+      if (parts.length != 3) return null;
+
+      final payloadBase64 = parts[1];
+      final normalized = base64Url.normalize(payloadBase64);
+      final payloadString = utf8.decode(base64Url.decode(normalized));
+      final Map<String, dynamic> payload = jsonDecode(payloadString);
+
+      final roles = payload["roles"];
+      if (roles is List && roles.isNotEmpty) {
+        return roles.first.toString(); // "ADMIN"
+      }
+
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  static String? _normalizeRole(dynamic raw) {
+    if (raw == null) return null;
+
+    // roles: ["ADMIN"]
+    if (raw is List && raw.isNotEmpty) {
+      return raw.first
+          .toString()
+          .trim()
+          .replaceAll('[', '')
+          .replaceAll(']', '');
+    }
+
+    // role: "[ADMIN]" o "ADMIN"
+    final r = raw.toString().trim();
+    if (r.isEmpty) return null;
+
+    return r.replaceAll('[', '').replaceAll(']', '').trim();
   }
 }

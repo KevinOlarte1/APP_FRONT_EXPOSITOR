@@ -36,10 +36,12 @@ class VendedorService {
     return [];
   }
 
-  /// Obtener número de pedidos por vendedor
-  Future<Map<String, int>> getNumPedidos(int idVendedor) async {
+  /// Obtener número de pedidos por vendedor - ADMIN
+  Future<Map<String, int>> getNumPedidos({int? idVendedor}) async {
     final url = Uri.parse(
-      "${ApiConstants.vendedor}/$idVendedor/stats/numPedido",
+      idVendedor != null
+          ? "${ApiConstants.vendedor}/$idVendedor/stats/numPedido"
+          : "${ApiConstants.vendedor}/stats/numPedido",
     );
 
     final response = await HttpClientJwt.get(url);
@@ -54,18 +56,19 @@ class VendedorService {
     return {};
   }
 
-  /// Obtener productos vendidos por categoría
-  Future<Map<String, int>> getStatsProductsByCategory(int idVendedor) async {
+  /// Obtener productos vendidos por categoría - ADMIN
+  Future<Map<String, int>> getStatsProductsByCategory({int? idVendedor}) async {
     final url = Uri.parse(
-      "${ApiConstants.vendedor}/$idVendedor/stats/numProductsCategoria",
+      idVendedor != null
+          ? "${ApiConstants.vendedor}/$idVendedor/stats/numProductsCategoria"
+          : "${ApiConstants.vendedor}/stats/numProductsCategoria",
     );
 
     final response = await HttpClientJwt.get(url);
 
     if (response.statusCode == 200) {
       final Map<String, dynamic> data = jsonDecode(response.body);
-
-      return data.map((key, value) => MapEntry(key, (value as num).toInt()));
+      return data.map((k, v) => MapEntry(k, (v as num).toInt()));
     }
 
     print("❌ Error getStatsProductsByCategory: ${response.statusCode}");
@@ -73,10 +76,14 @@ class VendedorService {
     return {};
   }
 
-  /// Obtener ingreso anual por cliente (gasto)
-  Future<List<IngresoCliente>> getIngresoAnualByCliente(int idVendedor) async {
+  /// Obtener ingreso anual por cliente (gasto) - ADMIN
+  Future<List<IngresoCliente>> getIngresoAnualByCliente({
+    int? idVendedor,
+  }) async {
     final url = Uri.parse(
-      "${ApiConstants.vendedor}/$idVendedor/stats/gastoPorCliente",
+      idVendedor != null
+          ? "${ApiConstants.vendedor}/$idVendedor/stats/gastoPorCliente"
+          : "${ApiConstants.vendedor}/stats/gastoPorCliente",
     );
 
     final response = await HttpClientJwt.get(url);

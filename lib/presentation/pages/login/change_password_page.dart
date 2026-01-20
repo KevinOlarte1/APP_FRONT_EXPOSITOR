@@ -1,3 +1,4 @@
+import 'package:expositor_app/core/session/session.dart';
 import 'package:expositor_app/data/services/auth_service.dart';
 import 'package:expositor_app/data/services/vendedor_service.dart';
 import 'package:flutter/material.dart';
@@ -66,41 +67,16 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
       );
 
       if (loginResponse != null) {
-        // 🔹 3. Obtener datos del vendedor
-        final vendedor = await _vendedorService.getMe();
-
         setState(() => _isLoading = false);
 
-        if (vendedor == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Error al obtener el perfil')),
-          );
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (_) => const LoginPage()),
-            (route) => false,
-          );
-          return;
-        }
-
-        // 🔹 4. Redirigir según rol
-        if (vendedor.role.toUpperCase().contains("ADMIN")) {
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(
-              builder: (_) => HomeAdminPage(vendedorActual: vendedor),
-            ),
-            (route) => false,
-          );
-        } else {
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(
-              builder: (_) => HomeUserPage(vendedorActual: vendedor),
-            ),
-            (route) => false,
-          );
-        }
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                Session.isAdmin ? const HomeAdminPage() : const HomeUserPage(),
+          ),
+          (route) => false,
+        );
       } else {
         // ❌ Si el login falla, volver al login
         setState(() => _isLoading = false);

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:expositor_app/data/models/vendedor.dart';
 import 'package:expositor_app/presentation/widget/cards/vendor_card.dart';
-import 'package:expositor_app/presentation/pages/admin/vendedor_admin_page.dart';
+import 'package:expositor_app/presentation/pages/admin/vendedor_detail_page.dart';
 
 class VendedoresDashboardPage extends StatefulWidget {
   const VendedoresDashboardPage({super.key});
@@ -79,7 +79,8 @@ class _VendedoresDashboardPageState extends State<VendedoresDashboardPage> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => VendedorDetailPage(vendedor: v),
+                              builder: (_) =>
+                                  VendedorDetailPage(vendedor: v, title: 1),
                             ),
                           );
                         },
