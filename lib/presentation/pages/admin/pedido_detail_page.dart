@@ -12,16 +12,16 @@ import 'package:expositor_app/data/services/linea_pedido_service.dart';
 import 'package:expositor_app/data/services/producto_service.dart';
 import 'package:expositor_app/data/services/cliente_service.dart';
 
-class PedidoAdminDetailPage extends StatefulWidget {
+class PedidoDetailPage extends StatefulWidget {
   Pedido pedido;
 
-  PedidoAdminDetailPage({super.key, required this.pedido});
+  PedidoDetailPage({super.key, required this.pedido});
 
   @override
-  State<PedidoAdminDetailPage> createState() => _PedidoAdminDetailPageState();
+  State<PedidoDetailPage> createState() => _PedidoDetailPageState();
 }
 
-class _PedidoAdminDetailPageState extends State<PedidoAdminDetailPage> {
+class _PedidoDetailPageState extends State<PedidoDetailPage> {
   final ClienteService clienteService = ClienteService();
   final PedidoService pedidoService = PedidoService();
   final LineaPedidoService lineapedidoService = LineaPedidoService();
@@ -38,19 +38,10 @@ class _PedidoAdminDetailPageState extends State<PedidoAdminDetailPage> {
   @override
   void initState() {
     super.initState();
-
-    print("Pedido entrado -------------------------");
-    print("idPedido: ${widget.pedido.id}");
-    print("Lineas");
-    for (int i in widget.pedido.idLineaPedido) {
-      print(i);
-    }
-
     _loadAll();
   }
 
   Future<void> _loadAll() async {
-    print("Entra");
     setState(() {
       loadingLineas = true;
     });

@@ -7,7 +7,7 @@ import 'package:expositor_app/data/services/cliente_service.dart';
 import 'package:expositor_app/data/services/vendedor_service.dart';
 
 import 'package:expositor_app/presentation/widget/cards/cliente_card.dart';
-import 'package:expositor_app/presentation/pages/admin/cliente/cliente_details_admin_page.dart';
+import 'package:expositor_app/presentation/pages/admin/cliente/cliente_details_page.dart';
 
 // ✅ NUEVO: Session para saber si es admin
 import 'package:expositor_app/core/session/session.dart';
@@ -16,10 +16,10 @@ class ClientesPage extends StatefulWidget {
   const ClientesPage({super.key});
 
   @override
-  State<ClientesPage> createState() => _ClientesAdminPageState();
+  State<ClientesPage> createState() => _ClientesPageState();
 }
 
-class _ClientesAdminPageState extends State<ClientesPage> {
+class _ClientesPageState extends State<ClientesPage> {
   final ClienteService _clienteService = ClienteService();
   final VendedorService _vendedorService = VendedorService();
 
@@ -361,9 +361,8 @@ class _ClientesAdminPageState extends State<ClientesPage> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) => ClienteDetailsAdminPage(
-                                      cliente: cliente,
-                                    ),
+                                    builder: (_) =>
+                                        ClienteDetailsPage(cliente: cliente),
                                   ),
                                 );
                               },

@@ -1,7 +1,7 @@
 import 'package:expositor_app/data/models/pedido.dart';
 import 'package:expositor_app/data/services/cliente_service.dart';
 import 'package:expositor_app/data/services/pedido_service.dart';
-import 'package:expositor_app/presentation/pages/admin/pedido_admin_page.dart';
+import 'package:expositor_app/presentation/pages/admin/pedido_detail_page.dart';
 import 'package:expositor_app/presentation/widget/cards/pedido_card.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
@@ -9,18 +9,18 @@ import 'package:expositor_app/data/models/cliente.dart';
 import 'package:expositor_app/data/models/vendedor.dart';
 import 'package:expositor_app/data/services/vendedor_service.dart';
 import 'package:expositor_app/core/services/secure_storage_service.dart';
+import 'dart:math' as math;
 
-class ClienteDetailsAdminPage extends StatefulWidget {
+class ClienteDetailsPage extends StatefulWidget {
   final Cliente cliente;
 
-  const ClienteDetailsAdminPage({super.key, required this.cliente});
+  const ClienteDetailsPage({super.key, required this.cliente});
 
   @override
-  State<ClienteDetailsAdminPage> createState() =>
-      _ClienteDetailsAdminPageState();
+  State<ClienteDetailsPage> createState() => _ClienteDetailsAdminPageState();
 }
 
-class _ClienteDetailsAdminPageState extends State<ClienteDetailsAdminPage> {
+class _ClienteDetailsAdminPageState extends State<ClienteDetailsPage> {
   final VendedorService vendedorService = VendedorService();
   final ClienteService clienteService = ClienteService();
   final PedidoService pedidoService = PedidoService();
@@ -238,6 +238,28 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsAdminPage> {
         final values = data.values.toList();
         final maxValue = values.reduce((a, b) => a > b ? a : b);
 
+        // Evita maxY = 0 (si todo es 0, pinta igualmente la gráfica sin romper)
+        final safeMax = maxValue <= 0 ? 1.0 : maxValue;
+
+        // Intervalo SIEMPRE > 0
+        final safeInterval = math.max(1.0, safeMax / 5);
+        final allZero = values.every((v) => v == 0);
+        /*
+        if (allZero) {
+          return Card(
+            elevation: 3,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Padding(
+              padding: EdgeInsets.all(20),
+              child: Text(
+                "Este cliente aún no tiene ingresos.",
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+          );
+        } */
         return Card(
           elevation: 3,
           shape: RoundedRectangleBorder(
@@ -265,86 +287,114 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsAdminPage> {
                               MediaQuery.of(context).size.width
                           ? MediaQuery.of(context).size.width
                           : (data.length * 120).toDouble(),
-                      child: BarChart(
-                        BarChartData(
-                          alignment: BarChartAlignment.start,
-                          minY: 0,
-                          maxY: maxValue * 1.25,
-                          barTouchData: BarTouchData(
-                            enabled: true,
-                            touchTooltipData: BarTouchTooltipData(
-                              tooltipRoundedRadius: 8,
-                              getTooltipItem:
-                                  (group, groupIndex, rod, rodIndex) {
-                                    return BarTooltipItem(
-                                      "${years[group.x.toInt()]}\n",
-                                      const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                        fontSize: 14,
-                                      ),
-                                      children: [
-                                        TextSpan(
-                                          text:
-                                              "${rod.toY.toStringAsFixed(2)} €",
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 12,
-                                          ),
+                      child: Padding(
+                        padding: const EdgeInsets.only(
+                          top: 12,
+                        ), // ✅ aire tooltip
+                        child: BarChart(
+                          BarChartData(
+                            alignment: BarChartAlignment.start,
+                            minY: 0,
+                            maxY: safeMax * 1.25,
+
+                            barTouchData: BarTouchData(
+                              enabled: true,
+                              touchTooltipData: BarTouchTooltipData(
+                                fitInsideHorizontally: true, // ✅
+                                fitInsideVertically: true, // ✅
+                                tooltipRoundedRadius: 12,
+                                tooltipPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                tooltipMargin: 8,
+                                getTooltipItem:
+                                    (group, groupIndex, rod, rodIndex) {
+                                      final year = years[group.x.toInt()];
+                                      final value = values[group.x.toInt()];
+
+                                      return BarTooltipItem(
+                                        '$year\n',
+                                        const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black,
+                                          fontSize: 13,
                                         ),
-                                      ],
-                                    );
-                                  },
-                            ),
-                          ),
-                          gridData: FlGridData(
-                            show: true,
-                            horizontalInterval: (maxValue / 5).roundToDouble(),
-                            getDrawingHorizontalLine: (value) => FlLine(
-                              color: Colors.grey.shade300,
-                              strokeWidth: 1,
-                            ),
-                          ),
-                          borderData: FlBorderData(show: false),
-                          titlesData: FlTitlesData(
-                            topTitles: const AxisTitles(),
-                            rightTitles: const AxisTitles(),
-                            leftTitles: const AxisTitles(),
-                            bottomTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: 40,
-                                getTitlesWidget: (value, meta) {
-                                  final index = value.toInt();
-                                  if (index < 0 || index >= years.length) {
-                                    return const SizedBox.shrink();
-                                  }
-                                  return SideTitleWidget(
-                                    axisSide: meta.axisSide,
-                                    child: Text(
-                                      years[index],
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  );
-                                },
+                                        children: [
+                                          TextSpan(
+                                            text:
+                                                '${value.toStringAsFixed(2)} €',
+                                            style: const TextStyle(
+                                              color: Colors.black87,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    },
                               ),
                             ),
-                          ),
-                          barGroups: List.generate(
-                            data.length,
-                            (i) => BarChartGroupData(
-                              x: i,
-                              barRods: [
-                                BarChartRodData(
-                                  toY: values[i],
-                                  width: 35,
-                                  borderRadius: BorderRadius.circular(6),
-                                  color: const Color(0xFF3C75EF),
+
+                            gridData: FlGridData(
+                              show: true,
+                              drawVerticalLine: false,
+                              getDrawingHorizontalLine: (_) => FlLine(
+                                color: Colors.grey.shade300,
+                                strokeWidth: 1,
+                              ),
+                            ),
+                            borderData: FlBorderData(show: false),
+
+                            titlesData: FlTitlesData(
+                              topTitles: AxisTitles(
+                                sideTitles: SideTitles(
+                                  showTitles: false,
+                                  reservedSize: 12, // ✅ espacio superior
                                 ),
-                              ],
+                              ),
+                              rightTitles: const AxisTitles(
+                                sideTitles: SideTitles(showTitles: false),
+                              ),
+                              leftTitles: const AxisTitles(
+                                sideTitles: SideTitles(showTitles: false),
+                              ),
+                              bottomTitles: AxisTitles(
+                                sideTitles: SideTitles(
+                                  showTitles: true,
+                                  reservedSize: 40,
+                                  getTitlesWidget: (value, meta) {
+                                    final index = value.toInt();
+                                    if (index < 0 || index >= years.length) {
+                                      return const SizedBox.shrink();
+                                    }
+                                    return SideTitleWidget(
+                                      axisSide: meta.axisSide,
+                                      child: Text(
+                                        years[index],
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+
+                            barGroups: List.generate(
+                              data.length,
+                              (i) => BarChartGroupData(
+                                x: i,
+                                barRods: [
+                                  BarChartRodData(
+                                    toY: values[i],
+                                    width: 35,
+                                    borderRadius: BorderRadius.circular(6),
+                                    color: const Color(0xFF3C75EF),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -484,7 +534,7 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsAdminPage> {
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) =>
-                                      PedidoAdminDetailPage(pedido: pedido),
+                                      PedidoDetailPage(pedido: pedido),
                                 ),
                               ).then((_) {
                                 setState(

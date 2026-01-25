@@ -6,7 +6,7 @@ import 'package:expositor_app/data/services/http_client_jwt.dart';
 class PedidoService {
   /// Crear un nuevo pedido
   Future<Pedido?> addPedido({required int idCliente}) async {
-    final url = Uri.parse("${ApiConstants.clientes}/$idCliente/pedido/admin");
+    final url = Uri.parse("${ApiConstants.clientes}/$idCliente/pedido");
 
     final response = await HttpClientJwt.post(url);
 
@@ -45,7 +45,7 @@ class PedidoService {
 
   /// Obtener todos los pedidos de un cliente (modo admin)
   Future<List<Pedido>> getPedidosByClienteAdmin(int idCliente) async {
-    final url = Uri.parse("${ApiConstants.clientes}/$idCliente/pedido/admin");
+    final url = Uri.parse("${ApiConstants.clientes}/$idCliente/pedido");
 
     final response = await HttpClientJwt.get(url);
 

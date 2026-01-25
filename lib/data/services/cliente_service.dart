@@ -30,7 +30,7 @@ class ClienteService {
 
   /// Obtener cliente por ID
   Future<Cliente?> getClienteById(int idCliente) async {
-    final url = Uri.parse("${ApiConstants.clientes}/admin/$idCliente");
+    final url = Uri.parse("${ApiConstants.clientes}/$idCliente");
 
     final response = await HttpClientJwt.get(url);
 
@@ -45,7 +45,9 @@ class ClienteService {
 
   /// Obtener ingreso anual del cliente
   Future<Map<String, double>> getIngresoAnual(int idCliente) async {
-    final url = Uri.parse("${ApiConstants.clientes}/admin/$idCliente/stats");
+    final url = Uri.parse("${ApiConstants.clientes}/$idCliente/stats");
+    print("--------------------------");
+    print("Estats");
 
     final response = await HttpClientJwt.get(url);
 

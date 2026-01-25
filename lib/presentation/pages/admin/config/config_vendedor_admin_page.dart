@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:expositor_app/core/session/session.dart';
 import 'package:expositor_app/data/services/cliente_service.dart';
 import 'package:expositor_app/data/services/producto_service.dart';
 import 'package:file_picker/file_picker.dart';
@@ -718,352 +719,356 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
               ),
             ),
 
-            // ---------------------------------------------------
-            // CARD 2 — VALORES POR DEFECTO PARA PEDIDOS
-            // ---------------------------------------------------
-            _card(
-              title: "Valores por defecto para pedidos",
-              child: loadingDefaults
-                  ? const Center(child: CircularProgressIndicator())
-                  : Column(
-                      children: [
-                        _input(
-                          label: "Descuento (%)",
-                          placeholder: "0 - 100",
-                          controller: descuentoCtrl,
-                        ),
+            if (Session.isAdmin) ...[
+              // ---------------------------------------------------
+              // CARD 2 — VALORES POR DEFECTO PARA PEDIDOS
+              // ---------------------------------------------------
+              _card(
+                title: "Valores por defecto para pedidos",
+                child: loadingDefaults
+                    ? const Center(child: CircularProgressIndicator())
+                    : Column(
+                        children: [
+                          _input(
+                            label: "Descuento (%)",
+                            placeholder: "0 - 100",
+                            controller: descuentoCtrl,
+                          ),
 
-                        _input(
-                          label: "IVA (%)",
-                          placeholder: "0 - 100",
-                          controller: ivaCtrl,
-                        ),
+                          _input(
+                            label: "IVA (%)",
+                            placeholder: "0 - 100",
+                            controller: ivaCtrl,
+                          ),
 
-                        _input(
-                          label: "Máximo de grupos",
-                          placeholder: "1 - 50",
-                          controller: maxGruposCtrl,
-                        ),
+                          _input(
+                            label: "Máximo de grupos",
+                            placeholder: "1 - 50",
+                            controller: maxGruposCtrl,
+                          ),
 
-                        const SizedBox(height: 10),
+                          const SizedBox(height: 10),
 
-                        SizedBox(
-                          width: 220,
-                          child: ElevatedButton(
-                            onPressed: _savePedidoDefaults,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF3C75EF),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                          SizedBox(
+                            width: 220,
+                            child: ElevatedButton(
+                              onPressed: _savePedidoDefaults,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF3C75EF),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
-                            ),
-                            child: Text(
-                              "Guardar valores",
-                              style: GoogleFonts.poppins(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
+                              child: Text(
+                                "Guardar valores",
+                                style: GoogleFonts.poppins(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
+              ),
+
+              // ---------------------------------------------------
+              // CARD 3 — ADMINISTRAR CATEGORÍAS
+              // ---------------------------------------------------
+              _card(
+                title: "Administrar categorías",
+                child: FutureBuilder<List<Categoria>>(
+                  future: categoriaService.getCategorias(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    final categorias = snapshot.data!;
+
+                    return GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: categorias.length + 1,
+                      gridDelegate:
+                          const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 180,
+                            mainAxisSpacing: 16,
+                            crossAxisSpacing: 16,
+                            childAspectRatio: 150 / 130,
+                          ),
+                      itemBuilder: (context, index) {
+                        if (index == categorias.length) {
+                          return _buildAddCard();
+                        }
+                        return _buildCategoryCard(categorias[index]);
+                      },
+                    );
+                  },
+                ),
+              ),
+
+              // ---------------------------------------------------
+              // CARD 4 — ADMINISTRAR VENDEDORES
+              // ---------------------------------------------------
+              _card(
+                title: "Administrar vendedores",
+                child: FutureBuilder<List<Vendedor>>(
+                  future: vendedorService.getVendedores(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    final vendedores = snapshot.data!;
+
+                    return GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: vendedores.length + 1,
+                      gridDelegate:
+                          const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 200,
+                            mainAxisSpacing: 16,
+                            crossAxisSpacing: 16,
+                            childAspectRatio: 150 / 160,
+                          ),
+                      itemBuilder: (context, index) {
+                        if (index == vendedores.length) {
+                          return _buildAddVendedorCard();
+                        }
+                        return _buildVendedorCard(vendedores[index]);
+                      },
+                    );
+                  },
+                ),
+              ),
+
+              // ---------------------------------------------------
+              // CARD 5 — EXPORTACIÓN CSV
+              // ---------------------------------------------------
+              _card(
+                title: "Exportación",
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Descargar datos en formato CSV",
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        color: Colors.black87,
+                      ),
                     ),
-            ),
+                    const SizedBox(height: 16),
 
-            // ---------------------------------------------------
-            // CARD 3 — ADMINISTRAR CATEGORÍAS
-            // ---------------------------------------------------
-            _card(
-              title: "Administrar categorías",
-              child: FutureBuilder<List<Categoria>>(
-                future: categoriaService.getCategorias(),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  final categorias = snapshot.data!;
-
-                  return GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: categorias.length + 1,
-                    gridDelegate:
-                        const SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 180,
-                          mainAxisSpacing: 16,
-                          crossAxisSpacing: 16,
-                          childAspectRatio: 150 / 130,
+                    // BOTÓN EXPORTAR CLIENTES
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.download),
+                        onPressed: _exportClientesCsv,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF3C75EF),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
-                    itemBuilder: (context, index) {
-                      if (index == categorias.length) {
-                        return _buildAddCard();
-                      }
-                      return _buildCategoryCard(categorias[index]);
-                    },
+                        label: Text(
+                          "Exportar clientes (CSV)",
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // BOTÓN EXPORTAR PRODUCTOS
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.download),
+                        onPressed: _exportProductosCsv,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        label: Text(
+                          "Exportar productos (CSV)",
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // BOTÓN EXPORTAR PEDIDOS
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.download),
+                        onPressed: _exportPedidosCsv,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.deepOrange, // Nuevo color
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        label: Text(
+                          "Exportar pedidos (CSV)",
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // BOTÓN EXPORTAR CATEGORÍAS
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.download),
+                        onPressed: _exportCategoriasCsv,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.teal,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        label: Text(
+                          "Exportar categorías (CSV)",
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // ---------------------------------------------------
+              // CARD 6— IMPORTACIONES
+              // ---------------------------------------------------
+              _card(
+                title: "Importaciones",
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Subir archivos CSV para cargar productos o clientes al sistema.",
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // BOTÓN — Importar productos
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.upload_file),
+                        onPressed: _importProductosCsv,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        label: Text(
+                          "Importar productos (CSV)",
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // BOTÓN — Importar clientes
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.upload_file),
+                        onPressed: _importClientesCsv,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.deepPurple,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        label: Text(
+                          "Importar clientes (CSV)",
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // BOTÓN — Importar categorías
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.upload_file),
+                        onPressed: _importCategoriasCsv,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.teal,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        label: Text(
+                          "Importar categorías (CSV)",
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // ---------------------------------------------------
+              // CARD 7 — ADMINISTRAR PRODUCTOS (MODULARIZADO)
+              // ---------------------------------------------------
+              AdminMenuTile(
+                title: "Administrar Productos",
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ProductAdminPage()),
                   );
                 },
               ),
-            ),
-
-            // ---------------------------------------------------
-            // CARD 4 — ADMINISTRAR VENDEDORES
-            // ---------------------------------------------------
-            _card(
-              title: "Administrar vendedores",
-              child: FutureBuilder<List<Vendedor>>(
-                future: vendedorService.getVendedores(),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  final vendedores = snapshot.data!;
-
-                  return GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: vendedores.length + 1,
-                    gridDelegate:
-                        const SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 200,
-                          mainAxisSpacing: 16,
-                          crossAxisSpacing: 16,
-                          childAspectRatio: 150 / 160,
-                        ),
-                    itemBuilder: (context, index) {
-                      if (index == vendedores.length) {
-                        return _buildAddVendedorCard();
-                      }
-                      return _buildVendedorCard(vendedores[index]);
-                    },
-                  );
-                },
-              ),
-            ),
-
-            // ---------------------------------------------------
-            // CARD 5 — EXPORTACIÓN CSV
-            // ---------------------------------------------------
-            _card(
-              title: "Exportación",
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Descargar datos en formato CSV",
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // BOTÓN EXPORTAR CLIENTES
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.download),
-                      onPressed: _exportClientesCsv,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF3C75EF),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      label: Text(
-                        "Exportar clientes (CSV)",
-                        style: GoogleFonts.poppins(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  // BOTÓN EXPORTAR PRODUCTOS
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.download),
-                      onPressed: _exportProductosCsv,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      label: Text(
-                        "Exportar productos (CSV)",
-                        style: GoogleFonts.poppins(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // BOTÓN EXPORTAR PEDIDOS
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.download),
-                      onPressed: _exportPedidosCsv,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.deepOrange, // Nuevo color
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      label: Text(
-                        "Exportar pedidos (CSV)",
-                        style: GoogleFonts.poppins(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // BOTÓN EXPORTAR CATEGORÍAS
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.download),
-                      onPressed: _exportCategoriasCsv,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.teal,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      label: Text(
-                        "Exportar categorías (CSV)",
-                        style: GoogleFonts.poppins(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // ---------------------------------------------------
-            // CARD 6— IMPORTACIONES
-            // ---------------------------------------------------
-            _card(
-              title: "Importaciones",
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Subir archivos CSV para cargar productos o clientes al sistema.",
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // BOTÓN — Importar productos
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.upload_file),
-                      onPressed: _importProductosCsv,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      label: Text(
-                        "Importar productos (CSV)",
-                        style: GoogleFonts.poppins(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  // BOTÓN — Importar clientes
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.upload_file),
-                      onPressed: _importClientesCsv,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.deepPurple,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      label: Text(
-                        "Importar clientes (CSV)",
-                        style: GoogleFonts.poppins(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  // BOTÓN — Importar categorías
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.upload_file),
-                      onPressed: _importCategoriasCsv,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.teal,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      label: Text(
-                        "Importar categorías (CSV)",
-                        style: GoogleFonts.poppins(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // ---------------------------------------------------
-            // CARD 7 — ADMINISTRAR PRODUCTOS (MODULARIZADO)
-            // ---------------------------------------------------
-            AdminMenuTile(
-              title: "Administrar Productos",
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ProductAdminPage()),
-                );
-              },
-            ),
+            ],
           ],
         ),
       ),
