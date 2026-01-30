@@ -9,6 +9,9 @@ import 'presentation/pages/home/home_user_page.dart';
 import 'core/services/secure_storage_service.dart';
 import 'data/models/vendedor.dart';
 import 'data/services/vendedor_service.dart';
+import 'package:flutter/material.dart';
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -48,6 +51,7 @@ class MyApp extends StatelessWidget {
         useMaterial3: false,
       ),
       home: initialPage,
+      navigatorKey: navigatorKey,
     );
   }
 }

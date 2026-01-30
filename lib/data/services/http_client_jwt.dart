@@ -1,8 +1,13 @@
 import 'dart:convert';
 import 'package:expositor_app/core/session/session.dart';
+import 'package:expositor_app/main.dart';
+import 'package:expositor_app/presentation/pages/login/login_page.dart';
 import 'package:http/http.dart' as http;
 import 'package:expositor_app/core/services/secure_storage_service.dart';
 import 'package:expositor_app/data/services/auth_service.dart';
+import 'package:flutter/material.dart';
+
+final GlobalKey<NavigatorState> appNavKey = GlobalKey<NavigatorState>();
 
 class HttpClientJwt {
   static final SecureStorageService _storage = SecureStorageService();
@@ -30,7 +35,7 @@ class HttpClientJwt {
     http.MultipartRequest request,
   ) async {
     // Añadir token manualmente porque _headers() impone JSON
-    final token = Session.token;
+    var token = Session.token;
     request.headers["Authorization"] = "Bearer $token";
 
     // Ejecutar la petición
@@ -51,41 +56,42 @@ class HttpClientJwt {
 
     print("🔄 Refresh OK — Reintentando petición multipart…");
 
-    // Crear nuevo request (hay que reconstruirlo!)
-    final retryRequest = http.MultipartRequest(request.method, url)
-      ..files.addAll(request.files);
-
-    retryRequest.headers["Authorization"] = "Bearer ${Session.token}";
-
-    return await retryRequest.send();
+    // 2) Reintento (request nuevo)
+    token = Session.token;
+    request.headers["Authorization"] = "Bearer $token";
+    return await request.send();
   }
 
   // =====================================================
   //   🔥 LÓGICA CENTRAL: REFRESH TOKEN AUTOMÁTICO
   // =====================================================
   static Future<http.Response> _send(
-    Future<http.Response> Function() requestFunction,
-  ) async {
-    // 1️⃣ Ejecutamos la petición original
-    http.Response response = await requestFunction();
+    Future<http.Response> Function() requestFunction, {
+    bool retried = false,
+  }) async {
+    final response = await requestFunction();
 
-    // 2️⃣ Si NO es 401 → devolvemos directamente
     if (response.statusCode != 401) return response;
 
-    print("⚠️ TOKEN EXPIRED — Intentando refresh…");
-
-    // 3️⃣ Intentar refrescar tokens
-    final refreshed = await AuthService.refresh();
-
-    if (!refreshed) {
-      print("❌ Refresh falló. Sesión expirada.");
-      return response;
+    // Si ya reintentamos, NO más refresh -> logout y navegar
+    if (retried) {
+      await AuthService.logout();
+      // o el método que tengas para limpiar token
+      navigatorKey.currentState?.pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginPage()),
+        (route) => false,
+      );
     }
 
-    print("🔄 Refresh OK — Reintentando petición…");
+    // 1 intento de refresh
+    final refreshed = await AuthService.refresh();
+    if (!refreshed) {
+      await AuthService.logout();
+      throw Exception("Sesión expirada");
+    }
 
-    // 4️⃣ Reintentar la petición original con token nuevo
-    return await requestFunction();
+    // Reintento 1 vez marcado
+    return _send(requestFunction, retried: true);
   }
 
   // Headers con token actualizado

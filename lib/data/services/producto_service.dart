@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:expositor_app/core/constants/api_constants.dart';
+import 'package:expositor_app/core/session/session.dart';
 import 'package:expositor_app/data/models/producto.dart';
 import 'package:expositor_app/data/services/http_client_jwt.dart';
 import 'package:http/http.dart' as http;
@@ -87,9 +88,13 @@ class ProductoService {
   }
 
   Future<bool> importarProductosCsv(Uint8List bytes, String filename) async {
-    final uri = Uri.parse("${ApiConstants.config}/import/productos");
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('${ApiConstants.config}/import/productos'),
+    );
 
-    final request = http.MultipartRequest("POST", uri);
+    request.headers['Authorization'] = 'Bearer ${Session.token}';
+    request.headers['Accept'] = 'application/json';
 
     request.files.add(
       http.MultipartFile.fromBytes(
@@ -100,9 +105,18 @@ class ProductoService {
       ),
     );
 
-    final response = await HttpClientJwt.postMultipart(uri, request);
+    final streamed = await request.send();
+    final body = await streamed.stream.bytesToString();
 
-    return response.statusCode == 200;
+    final ok = streamed.statusCode == 200;
+
+    if (!ok) {
+      print('❌ ${streamed.statusCode}: $body');
+    } else {
+      print('✅ ${streamed.statusCode}: $body');
+    }
+
+    return ok;
   }
 
   Future<Uint8List?> getPedidosCsv() async {

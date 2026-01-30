@@ -69,7 +69,7 @@ class _ProductAdminPageState extends State<ProductAdminPage> {
   void _showCreateOrEditDialog({Producto? producto}) async {
     final result = await showDialog(
       context: context,
-      builder: (_) => ProductDialog(producto: producto),
+      builder: (_) => ProductDialog(),
     );
 
     if (result != null && result is Producto) {

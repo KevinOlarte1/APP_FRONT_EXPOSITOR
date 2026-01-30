@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:expositor_app/core/session/session.dart';
 import 'package:expositor_app/data/services/http_client_jwt.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
@@ -66,17 +67,30 @@ class CategoriaService {
       Uri.parse('${ApiConstants.config}/import/categorias'),
     );
 
+    request.headers['Authorization'] = 'Bearer ${Session.token}';
+    request.headers['Accept'] = 'application/json';
+
     request.files.add(
       http.MultipartFile.fromBytes(
         'file',
         bytes,
         filename: filename,
-        contentType: MediaType('text', 'csv'),
+        // contentType: MediaType('text', 'csv'), // opcional
       ),
     );
 
     final streamed = await request.send();
-    return streamed.statusCode == 200;
+    final body = await streamed.stream.bytesToString();
+
+    final ok = streamed.statusCode == 200;
+
+    if (!ok) {
+      print('❌ ${streamed.statusCode}: $body');
+    } else {
+      print('✅ ${streamed.statusCode}: $body');
+    }
+
+    return ok;
   }
 
   Future<Uint8List?> getCategoriasCsv() async {

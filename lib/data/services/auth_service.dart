@@ -7,6 +7,7 @@ import 'package:expositor_app/core/session/session.dart';
 
 import '../dto/login_request.dart';
 import '../dto/login_response.dart';
+import 'package:expositor_app/main.dart';
 
 class AuthService {
   // Storage de instancia (login usa este)
@@ -150,48 +151,49 @@ class AuthService {
   static Future<bool> refresh() async {
     final refreshToken = await _staticStorage.getRefreshToken();
 
-    if (refreshToken == null) {
+    if (refreshToken == null || refreshToken.isEmpty) {
       print("⚠️ No hay refresh token guardado");
       return false;
     }
 
-    final url = Uri.parse("${ApiConstants.auth}/refresh");
-
     try {
-      final response = await http.post(
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"refreshToken": refreshToken}),
-      );
+      final url = Uri.parse("${ApiConstants.auth}/refresh");
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+      final response = await http
+          .post(
+            url,
+            headers: {"Content-Type": "application/json"},
+            body: jsonEncode({"refreshToken": refreshToken}),
+          )
+          .timeout(const Duration(seconds: 10));
 
-        final newAccess = data["accessToken"];
-        final newRefresh = data["refreshToken"];
-
-        if (newAccess != null && newRefresh != null) {
-          await _staticStorage.saveTokens(newAccess, newRefresh);
-          print("🔄 Tokens refrescados correctamente.");
-
-          // ✅ Actualizar Session
-          Session.token = newAccess;
-
-          // ✅ Actualizar role (si viene en el JWT) y persistirlo
-          final role = _extractRoleFromJwt(newAccess);
-          Session.role = role;
-
-          if (role != null && role.isNotEmpty) {
-            await _staticStorage.saveRole(role);
-          }
-
-          return true;
-        }
-      } else {
+      if (response.statusCode != 200) {
         print(
           "❌ Error al refrescar token: ${response.statusCode} — ${response.body}",
         );
+        return false;
       }
+
+      final data = jsonDecode(response.body);
+
+      final newAccess = data["accessToken"];
+      final newRefresh = data["refreshToken"];
+
+      if (newAccess == null || newAccess.isEmpty) return false;
+
+      await _staticStorage.saveTokens(newAccess, newRefresh);
+      print("🔄 Tokens refrescados correctamente.");
+      // ✅ Actualizar Session
+      Session.token = newAccess;
+
+      // ✅ Actualizar role (si viene en el JWT) y persistirlo
+      final role = _extractRoleFromJwt(newAccess);
+      Session.role = role;
+
+      if (role != null && role.isNotEmpty) {
+        await _staticStorage.saveRole(role);
+      }
+      return true;
     } catch (e) {
       print("⚠️ Error de conexión al refrescar token: $e");
     }
@@ -240,5 +242,18 @@ class AuthService {
     if (r.isEmpty) return null;
 
     return r.replaceAll('[', '').replaceAll(']', '').trim();
+  }
+
+  static Future<void> logout() async {
+    Session.clear();
+    _staticStorage.deleteRole();
+    _staticStorage.deleteTokens();
+
+    // o si tienes algo tipo:
+    // await FlutterSecureStorage().delete(key: 'refreshToken');
+
+    // 3️⃣ (Opcional pero recomendado) limpiar cualquier estado cacheado
+    // ejemplo:
+    // ApiCache.clear();
   }
 }

@@ -1068,6 +1068,12 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
                   );
                 },
               ),
+              AdminMenuTile(
+                title: "Borrar datos de categorias/producto/cliente",
+                onTap: () {
+                  deleteDatos();
+                },
+              ),
             ],
           ],
         ),
@@ -1318,6 +1324,17 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
           ok
               ? "Clientes importados correctamente"
               : "Error al importar clientes",
+        ),
+      ),
+    );
+  }
+
+  Future<void> deleteDatos() async {
+    final ok = await clienteService.deleteDatos();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok ? "Datos borrados correctamente" : "Error al borrar datos",
         ),
       ),
     );

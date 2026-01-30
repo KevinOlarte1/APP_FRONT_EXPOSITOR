@@ -87,9 +87,12 @@ class ClienteService {
   }
 
   Future<bool> importarClientesCsv(Uint8List bytes, String filename) async {
-    final uri = Uri.parse("${ApiConstants.config}/import/clientes");
-
-    final request = http.MultipartRequest("POST", uri);
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('${ApiConstants.config}/import/clientes'),
+    );
+    request.headers['Authorization'] = 'Bearer ${Session.token}';
+    request.headers['Accept'] = 'application/json';
 
     request.files.add(
       http.MultipartFile.fromBytes(
@@ -100,8 +103,39 @@ class ClienteService {
       ),
     );
 
-    final response = await HttpClientJwt.postMultipart(uri, request);
+    final streamed = await request.send();
+    final body = await streamed.stream.bytesToString();
 
-    return response.statusCode == 200;
+    final ok = streamed.statusCode == 200;
+
+    if (!ok) {
+      print('❌ ${streamed.statusCode}: $body');
+    } else {
+      print('✅ ${streamed.statusCode}: $body');
+    }
+
+    return ok;
+  }
+
+  Future<bool> deleteDatos() async {
+    final uri = Uri.parse('${ApiConstants.config}/import/delete');
+
+    final response = await http.delete(
+      uri,
+      headers: {
+        'Authorization': 'Bearer ${Session.token}',
+        'Accept': 'application/json',
+      },
+    );
+
+    final ok = response.statusCode == 200 || response.statusCode == 204;
+
+    if (!ok) {
+      print('❌ ${response.statusCode}: ${response.body}');
+    } else {
+      print('✅ ${response.statusCode}: ${response.body}');
+    }
+
+    return ok;
   }
 }
