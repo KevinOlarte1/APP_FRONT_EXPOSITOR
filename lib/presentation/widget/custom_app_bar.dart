@@ -1,4 +1,6 @@
 import 'package:expositor_app/core/constants/app_colors.dart';
+import 'package:expositor_app/core/session/session.dart';
+import 'package:expositor_app/presentation/pages/login/login_page.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -6,9 +8,16 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String name;
   final String avatarUrl;
 
-  const CustomAppBar({super.key, required this.name, required this.avatarUrl});
+  // ✅ Nuevo: callback para logout
+  final VoidCallback? onLogout;
 
-  // Altura fija del AppBar (soluciona el overflow)
+  const CustomAppBar({
+    super.key,
+    required this.name,
+    required this.avatarUrl,
+    this.onLogout,
+  });
+
   @override
   Size get preferredSize => const Size.fromHeight(80);
 
@@ -22,7 +31,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
 
     final bool isMobile = width < mobileMax;
     final bool isTablet = width >= mobileMax && width < tabletMax;
-    final bool isDesktop = width >= tabletMax;
+    // final bool isDesktop = width >= tabletMax;
 
     // Responsive metrics
     final double horizontalPadding = isMobile
@@ -72,7 +81,6 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Avatar
                 CircleAvatar(
                   radius: avatarRadius,
                   backgroundColor: Colors.grey.shade700,
@@ -88,10 +96,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                           ),
                         ),
                 ),
-
                 SizedBox(width: spacing),
-
-                // Nombre + saludo
                 Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -118,12 +123,52 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
               ],
             ),
           ),
+
+          // ✅ DERECHA DEL TODO: icono logout
+          Positioned(
+            right: 0,
+            child: IconButton(
+              iconSize: iconSize,
+              tooltip: "Cerrar sesión",
+              icon: const Icon(Icons.logout, color: Colors.white),
+              onPressed: () => _confirmarLogout(context),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  /// Extrae iniciales del nombre
+  void _confirmarLogout(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Cerrar sesión"),
+          content: const Text("¿Seguro que quieres cerrar sesión?"),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancelar"),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () {
+                Session.clear();
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const LoginPage()),
+                  (route) => false,
+                );
+              },
+              child: const Text("Confirmar"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   String _initialsFromName(String fullName) {
     final parts = fullName
         .trim()

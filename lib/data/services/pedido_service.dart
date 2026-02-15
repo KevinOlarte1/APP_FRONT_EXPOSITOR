@@ -1,7 +1,10 @@
 import 'dart:convert';
 import 'package:expositor_app/core/constants/api_constants.dart';
+import 'package:expositor_app/core/session/session.dart';
 import 'package:expositor_app/data/models/pedido.dart';
 import 'package:expositor_app/data/services/http_client_jwt.dart';
+import 'dart:typed_data';
+import 'package:http/http.dart' as http;
 
 class PedidoService {
   /// Crear un nuevo pedido
@@ -91,5 +94,29 @@ class PedidoService {
     final response = await HttpClientJwt.put(url);
 
     return response.statusCode == 200;
+  }
+
+  static Future<Uint8List?> descargarPedidoPdf({
+    required int idCliente,
+    required int idPedido,
+  }) async {
+    final url = Uri.parse(
+      "${ApiConstants.clientes}/$idCliente/pedido/$idPedido/pdf",
+    );
+
+    final response = await http.get(
+      url,
+      headers: {
+        "Authorization": "Bearer ${Session.token}",
+        "Accept": "application/pdf",
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return response.bodyBytes; // 🔥 AQUÍ están los bytes del PDF
+    } else {
+      print("❌ Error PDF: ${response.statusCode}");
+      return null;
+    }
   }
 }

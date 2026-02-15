@@ -1070,9 +1070,7 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
               ),
               AdminMenuTile(
                 title: "Borrar datos de categorias/producto/cliente",
-                onTap: () {
-                  deleteDatos();
-                },
+                onTap: _confirmarBorrado,
               ),
             ],
           ],
@@ -1338,5 +1336,47 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _confirmarBorrado() async {
+    final bool? confirmar = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false, // no se cierra tocando fuera
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text("Confirmar borrado"),
+          content: const Text(
+            "⚠️ Esta acción borrará categorías, productos y clientes.\n\n"
+            "¿Estás seguro de que quieres continuar?",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(false);
+              },
+              child: const Text("Cancelar"),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () {
+                Navigator.of(context).pop(true);
+              },
+              child: const Text("Borrar"),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmar == true) {
+      await deleteDatos();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Datos borrados correctamente"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }

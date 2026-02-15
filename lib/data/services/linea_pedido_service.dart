@@ -1,7 +1,10 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:expositor_app/core/constants/api_constants.dart';
+import 'package:expositor_app/core/session/session.dart';
 import 'package:expositor_app/data/models/linea_pedido.dart';
 import 'package:expositor_app/data/services/http_client_jwt.dart';
+import 'package:http/http.dart' as http;
 
 class LineaPedidoService {
   /// Obtener todas las líneas de un pedido
@@ -62,7 +65,7 @@ class LineaPedidoService {
     int idLinea,
   ) async {
     final url = Uri.parse(
-      "${ApiConstants.clientes}/$idCliente/pedido/$idPedido/linea/admin/$idLinea",
+      "${ApiConstants.clientes}/$idCliente/pedido/$idPedido/linea/$idLinea",
     );
 
     final response = await HttpClientJwt.delete(url);
@@ -79,7 +82,7 @@ class LineaPedidoService {
     double precio,
   ) async {
     final url = Uri.parse(
-      "${ApiConstants.clientes}/$idCliente/pedido/$idPedido/linea/$idLinea/admin",
+      "${ApiConstants.clientes}/$idCliente/pedido/$idPedido/linea/$idLinea",
     );
 
     final body = jsonEncode({"cantidad": cantidad, "precio": precio});
@@ -93,5 +96,58 @@ class LineaPedidoService {
 
     print("❌ Error updateLineaPedido: ${response.statusCode}");
     return null;
+  }
+
+  static Future<bool> actualizarStockFinal({
+    required int idCliente,
+    required int idPedido,
+    required int idLinea,
+    required int stockFinal,
+  }) async {
+    final url = Uri.parse(
+      "${ApiConstants.clientes}/$idCliente/pedido/$idPedido/linea/$idLinea/stock",
+    );
+
+    // Si tu backend espera JSON con clave:
+    final body = jsonEncode({"stockFinal": stockFinal});
+
+    try {
+      final response = await HttpClientJwt.put(url, body: body);
+
+      // Ajusta esto según lo que devuelva tu HttpClientJwt (statusCode, bool, etc.)
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        return true;
+      }
+
+      print("❌ actualizarStockFinal ${response.statusCode}: ${response.body}");
+      return false;
+    } catch (e) {
+      print("❌ actualizarStockFinal error: $e");
+      return false;
+    }
+  }
+
+  static Future<Uint8List?> descargarPedidoPdf({
+    required int idCliente,
+    required int idPedido,
+  }) async {
+    final url = Uri.parse(
+      "${ApiConstants.clientes}/$idCliente/pedido/$idPedido/pdf",
+    );
+
+    final response = await http.get(
+      url,
+      headers: {
+        "Authorization": "Bearer ${Session.token}",
+        "Accept": "application/pdf",
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return response.bodyBytes; // 🔥 AQUÍ están los bytes del PDF
+    } else {
+      print("❌ Error PDF: ${response.statusCode}");
+      return null;
+    }
   }
 }

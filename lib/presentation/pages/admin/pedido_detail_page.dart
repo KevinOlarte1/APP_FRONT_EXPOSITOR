@@ -1,4 +1,6 @@
+import 'package:expositor_app/core/services/file_saver.dart';
 import 'package:expositor_app/data/services/parametros_globales_service.dart';
+import 'package:expositor_app/utils/download/download_web.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -690,93 +692,146 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
   //                    ITEM DE LÍNEA REAL
   // ===========================================================
   Widget _buildLineaReal(LineaPedido linea) {
-    return GestureDetector(
-      onDoubleTap: widget.pedido.cerrado
-          ? null
-          : () => _showEditLineaDialog(linea),
-      child: FutureBuilder(
-        future: productoService.getProducto(linea.idProducto),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const SizedBox(
-              height: 40,
-              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-            );
-          }
-
-          final Producto producto = snapshot.data!;
-          final String totalLinea = (linea.precio * linea.cantidad)
-              .toStringAsFixed(2);
-
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ---------- ICONO PRODUCTO ----------
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade100,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.shopping_bag,
-                  color: Colors.blue,
-                  size: 22,
-                ),
-              ),
-
-              const SizedBox(width: 15),
-
-              // ---------- DATOS DE LA LÍNEA ----------
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      producto.descripcion,
-                      style: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                      ),
-                    ),
-
-                    const SizedBox(height: 4),
-
-                    Text(
-                      "Cantidad: ${linea.cantidad}",
-                      style: GoogleFonts.poppins(fontSize: 14),
-                    ),
-
-                    Text(
-                      "Precio unitario: ${linea.precio.toStringAsFixed(2)} €",
-                      style: GoogleFonts.poppins(fontSize: 14),
-                    ),
-
-                    const SizedBox(height: 6),
-
-                    Text(
-                      "Total línea: $totalLinea €",
-                      style: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 15,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // ---------- BOTÓN BORRAR ----------
-              if (!widget.pedido.cerrado)
-                IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                  onPressed: () => _confirmDeleteLinea(linea),
-                ),
-            ],
+    return FutureBuilder(
+      future: productoService.getProducto(linea.idProducto),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const SizedBox(
+            height: 40,
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
           );
-        },
-      ),
+        }
+
+        final Producto producto = snapshot.data!;
+        final String totalLinea = (linea.precio * linea.cantidad)
+            .toStringAsFixed(2);
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ✅ TODA LA ZONA CLICABLE (icono + textos)
+            Expanded(
+              child: InkWell(
+                onDoubleTap: widget.pedido.cerrado
+                    ? null
+                    : () => _showEditLineaDialog(linea),
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 6,
+                    horizontal: 2,
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // ---------- ICONO PRODUCTO ----------
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade100,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.shopping_bag,
+                          color: Colors.blue,
+                          size: 22,
+                        ),
+                      ),
+
+                      const SizedBox(width: 15),
+
+                      // ---------- DATOS DE LA LÍNEA ----------
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              producto.descripcion,
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+
+                            Text(
+                              "Cantidad: ${linea.cantidad}",
+                              style: GoogleFonts.poppins(fontSize: 14),
+                            ),
+
+                            RichText(
+                              text: TextSpan(
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.black,
+                                ),
+                                children: [
+                                  const TextSpan(text: "Stock final: "),
+                                  TextSpan(
+                                    text: linea.stockFinal?.toString() ?? "...",
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(height: 4),
+
+                            Text(
+                              "Precio unitario: ${linea.precio.toStringAsFixed(2)} €",
+                              style: GoogleFonts.poppins(fontSize: 14),
+                            ),
+
+                            const SizedBox(height: 6),
+
+                            // 🔥 TOTAL + BOTÓN REFRESH ABAJO
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    "Total línea: $totalLinea €",
+                                    style: GoogleFonts.poppins(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 15,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (!widget.pedido.cerrado)
+                        Column(
+                          children: [
+                            IconButton(
+                              tooltip: "Actualizar stock final",
+                              icon: const Icon(
+                                Icons.refresh,
+                                color: Colors.blue,
+                              ),
+                              onPressed: () =>
+                                  _showStockFinalDialog(context, linea),
+                            ),
+                            const SizedBox(height: 30),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () => _confirmDeleteLinea(linea),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -984,8 +1039,37 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
   }
 
   Widget _buildResponsiveActionButton() {
-    return widget.pedido.cerrado
-        ? ElevatedButton(
+    if (widget.pedido.cerrado) {
+      return Wrap(
+        spacing: 12,
+        runSpacing: 12,
+        children: [
+          // 🔵 CLONAR
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: () {
+              _clonarPedido(context);
+
+              // aquí luego llamas a tu endpoint de clonar
+              // y cuando termine: Navigator.pop(context);  (para cerrar el dialog)
+            },
+            child: Text(
+              "Clonar",
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ),
+
+          // 🟢 PDF
+          ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green,
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
@@ -1001,45 +1085,37 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
                 color: Colors.white,
               ),
             ),
-          )
-        : ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            onPressed: _confirmCerrarPedido,
-            child: Text(
-              "Cerrar pedido",
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-              ),
-            ),
-          );
+          ),
+        ],
+      );
+    }
+
+    // 🔴 CERRAR PEDIDO (cuando NO está cerrado)
+    return ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.redAccent,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      onPressed: _confirmCerrarPedido,
+      child: Text(
+        "Cerrar pedido",
+        style: GoogleFonts.poppins(
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
+        ),
+      ),
+    );
   }
 
   Future<void> _descargarPedidoPdf() async {
-    try {
-      /* await pedidoService.descargarPedido(
-        widget.pedido.idCliente,
-        widget.pedido.id,
-      );*/
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("PDF descargado correctamente"),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Error al descargar el PDF"),
-          backgroundColor: Colors.red,
-        ),
-      );
+    final bytes = await PedidoService.descargarPedidoPdf(
+      idCliente: widget.pedido.idCliente,
+      idPedido: widget.pedido.id,
+    );
+
+    if (bytes != null) {
+      await downloadBytes(bytes, "PedidpPDF.pdf");
     }
   }
 
@@ -1054,6 +1130,194 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
           "${fecha.year}";
     } catch (_) {
       return fechaISO;
+    }
+  }
+
+  void _showStockFinalDialog(BuildContext context, LineaPedido linea) {
+    final controller = TextEditingController(
+      text: linea.stockFinal?.toString() ?? "",
+    );
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text("Stock final"),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              hintText: "Introduce el nuevo stock",
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text("Cancelar"),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final texto = controller.text.trim();
+
+                if (texto.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("El stock no puede estar vacío"),
+                    ),
+                  );
+                  return;
+                }
+
+                final nuevoStock = int.tryParse(texto);
+
+                if (nuevoStock == null || nuevoStock < 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Introduce un número válido")),
+                  );
+                  return;
+                }
+
+                Navigator.pop(ctx);
+
+                final ok = await LineaPedidoService.actualizarStockFinal(
+                  idCliente: widget.pedido.idCliente,
+                  idPedido: widget.pedido.id,
+                  idLinea: linea.id,
+                  stockFinal: nuevoStock,
+                );
+
+                if (ok) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Stock actualizado correctamente"),
+                    ),
+                  );
+
+                  // 🔥 Si quieres refrescar la UI:
+                  setState(() {
+                    linea.stockFinal = nuevoStock;
+                  });
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Error al actualizar el stock"),
+                    ),
+                  );
+                }
+              },
+              child: const Text("Guardar"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _clonarPedido(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
+          title: Text(
+            "Clonar pedido",
+            style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+          ),
+          content: Text(
+            "¿Quieres realmente clonar este pedido?",
+            style: GoogleFonts.poppins(),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text("Cancelar", style: GoogleFonts.poppins()),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+              onPressed: () async {
+                Navigator.pop(ctx); // cerrar confirmación
+
+                try {
+                  final pedidoNuevo = await pedidoService.addPedido(
+                    idCliente: widget.pedido.idCliente,
+                  );
+
+                  if (pedidoNuevo != null) {
+                    await _crearLineasPedido(pedidoNuevo);
+
+                    final pedidoActualizado = await pedidoService.getPedido(
+                      idCliente: pedidoNuevo.idCliente,
+                      idPedido: pedidoNuevo.id,
+                    );
+                    if (pedidoActualizado != null) {
+                      _irAlPedidoConAnimacion(pedidoActualizado);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Error al refrescar el pedido clonado"),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("❌ Error al clonar el pedido"),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("❌ Error: $e"),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+              child: Text(
+                "Clonar",
+                style: GoogleFonts.poppins(color: Colors.white),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _irAlPedidoConAnimacion(Pedido nuevo) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => PedidoDetailPage(pedido: nuevo)),
+    );
+  }
+
+  Future<void> _crearLineasPedido(Pedido pedidoNuevo) async {
+    // ✅ usamos las líneas ya cargadas en esta pantalla
+    // (si quieres clonar solo el grupo filtrado: cambia "lineas" por "lineasFiltradas")
+    final List<LineaPedido> origen = List.from(lineas);
+
+    if (origen.isEmpty) return;
+
+    for (final linea in origen) {
+      try {
+        await lineapedidoService.addLineaPedido(
+          pedidoNuevo.idCliente,
+          pedidoNuevo.id,
+          linea.idProducto,
+          linea.cantidad + (linea.stockFinal ?? 0),
+          linea.precio,
+          linea.grupo ?? 1, // por si algún grupo viene null
+        );
+      } catch (e) {
+        // si alguna línea falla, seguimos con las demás
+        debugPrint("❌ Error clonando línea ${linea.id}: $e");
+      }
     }
   }
 }

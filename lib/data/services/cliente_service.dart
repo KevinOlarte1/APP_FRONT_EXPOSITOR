@@ -8,6 +8,28 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
 class ClienteService {
+  Future<Cliente?> addCliente(
+    String nombre,
+    String cif,
+    int? idVendedor,
+  ) async {
+    final url = Uri.parse(ApiConstants.clientes);
+    final body = jsonEncode({
+      "nombre": nombre,
+      "cif": cif,
+      "idVendedor": idVendedor,
+    });
+    final response = await HttpClientJwt.post(url, body: body);
+
+    if (response.statusCode == 201) {
+      final data = jsonDecode(response.body);
+      return Cliente.fromJson(data);
+    } else {
+      print("Error ${response.statusCode}: ${response.body}");
+      return null;
+    }
+  }
+
   /// Obtener todos los clientes (modo admin)
   Future<List<Cliente>> getAllClientes() async {
     final url;

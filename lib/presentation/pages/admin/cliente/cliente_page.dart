@@ -335,46 +335,224 @@ class _ClientesPageState extends State<ClientesPage> {
                 // GRID RESPONSIVE
                 // ===========================================================
                 Expanded(
-                  child: filteredClients.isEmpty
-                      ? Center(
-                          child: Text(
-                            "No hay clientes disponibles",
-                            style: GoogleFonts.poppins(fontSize: 16),
-                          ),
-                        )
-                      : GridView.builder(
-                          padding: const EdgeInsets.only(top: 10),
-                          gridDelegate:
-                              SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: crossAxisCount,
-                                crossAxisSpacing: 20,
-                                mainAxisSpacing: 20,
-                                childAspectRatio: 0.80,
-                              ),
-                          itemCount: filteredClients.length,
-                          itemBuilder: (context, index) {
-                            final cliente = filteredClients[index];
+                  child: GridView.builder(
+                    padding: const EdgeInsets.only(top: 10),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: crossAxisCount,
+                      crossAxisSpacing: 20,
+                      mainAxisSpacing: 20,
+                      childAspectRatio: 0.80,
+                    ),
+                    itemCount: filteredClients.length + 1,
+                    itemBuilder: (context, index) {
+                      if (index == 0) {
+                        return _buildCrearClienteCard();
+                      }
 
-                            return CardCliente(
-                              cliente: cliente,
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        ClienteDetailsPage(cliente: cliente),
-                                  ),
-                                );
-                              },
-                            );
-                          },
-                        ),
+                      final cliente = filteredClients[index - 1];
+
+                      return CardCliente(
+                        cliente: cliente,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  ClienteDetailsPage(cliente: cliente),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
                 ),
               ],
             );
           },
         ),
       ),
+    );
+  }
+
+  Widget _buildCrearClienteCard() {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () {
+          _irCrearCliente();
+        },
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          height: 140,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircleAvatar(
+                radius: 28,
+                backgroundColor: Colors.blue.withOpacity(0.1),
+                child: const Icon(Icons.add, size: 32, color: Colors.blue),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                "Crear Cliente",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                "Añadir un nuevo cliente al sistema",
+                style: TextStyle(color: Colors.grey),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _irCrearCliente() {
+    final TextEditingController nombreController = TextEditingController();
+    final TextEditingController cifController = TextEditingController();
+
+    Vendedor? vendedorSeleccionado;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: const Text("Crear Cliente"),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    /// Nombre
+                    TextField(
+                      controller: nombreController,
+                      decoration: const InputDecoration(
+                        labelText: "Nombre del cliente",
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+
+                    const SizedBox(height: 15),
+
+                    /// CIF
+                    TextField(
+                      controller: cifController,
+                      decoration: const InputDecoration(
+                        labelText: "CIF",
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+
+                    const SizedBox(height: 15),
+
+                    /// 🔥 SOLO SI ES ADMIN
+                    if (_isAdmin)
+                      DropdownButtonFormField<Vendedor>(
+                        value: vendedorSeleccionado,
+                        decoration: const InputDecoration(
+                          labelText: "Seleccionar Vendedor",
+                          border: OutlineInputBorder(),
+                        ),
+                        items: vendedores.map((v) {
+                          return DropdownMenuItem<Vendedor>(
+                            value: v,
+                            child: Text("${v.nombre} ${v.apellido}"),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            vendedorSeleccionado = value;
+                          });
+                        },
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Cerrar"),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    final nombre = nombreController.text.trim();
+                    final cif = cifController.text.trim();
+
+                    if (nombre.isEmpty || cif.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Todos los campos son obligatorios"),
+                        ),
+                      );
+                      return;
+                    }
+
+                    if (_isAdmin && vendedorSeleccionado == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Debes seleccionar un vendedor"),
+                        ),
+                      );
+                      return;
+                    }
+
+                    // ✅ idVendedor según rol
+                    final int? idVendedor = _isAdmin
+                        ? vendedorSeleccionado!.id
+                        : Session.userId; // vendedor logueado
+
+                    final nuevo = await _clienteService.addCliente(
+                      nombre,
+                      cif,
+                      idVendedor,
+                    );
+
+                    if (nuevo == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Error al crear cliente")),
+                      );
+                      return;
+                    }
+                    // ✅ 1) Actualiza listas en la página (sin refresh)
+                    setState(() {
+                      allClients.insert(0, nuevo);
+                    });
+                    _applyFilters(); // respeta búsqueda + filtro vendedor
+
+                    // ✅ 2) Cierra el dialog
+                    Navigator.pop(context);
+
+                    // ✅ 3) Navega a detalles
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ClienteDetailsPage(cliente: nuevo),
+                      ),
+                    );
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Cliente creado correctamente"),
+                      ),
+                    );
+                  },
+                  child: const Text("Guardar"),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

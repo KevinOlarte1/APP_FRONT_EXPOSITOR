@@ -47,11 +47,25 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsPage> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Pedido creado correctamente")),
-    );
+    Navigator.pushReplacement(
+      context,
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 300),
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            PedidoDetailPage(pedido: nuevo),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final offsetAnimation = Tween<Offset>(
+            begin: const Offset(0.2, 0.0),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut));
 
-    setState(() {}); // recargar pedidos
+          return FadeTransition(
+            opacity: animation,
+            child: SlideTransition(position: offsetAnimation, child: child),
+          );
+        },
+      ),
+    );
   }
 
   // ============================================================
