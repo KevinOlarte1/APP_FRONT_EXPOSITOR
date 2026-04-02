@@ -119,4 +119,23 @@ class PedidoService {
       return null;
     }
   }
+
+  Future<bool> putComentario({
+    required int idCliente,
+    required int idPedido,
+    required String comentario,
+  }) async {
+    final url = Uri.parse(
+      "${ApiConstants.clientes}/$idCliente/pedido/$idPedido",
+    );
+
+    final body = jsonEncode({"comentario": comentario});
+    try {
+      final response = await HttpClientJwt.put(url, body: body);
+
+      return response.statusCode >= 200 && response.statusCode < 300;
+    } catch (e) {
+      return false;
+    }
+  }
 }

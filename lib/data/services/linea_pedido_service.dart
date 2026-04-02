@@ -1,10 +1,9 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:expositor_app/core/constants/api_constants.dart';
 import 'package:expositor_app/core/session/session.dart';
 import 'package:expositor_app/data/models/linea_pedido.dart';
 import 'package:expositor_app/data/services/http_client_jwt.dart';
-import 'package:http/http.dart' as http;
+
 
 class LineaPedidoService {
   /// Obtener todas las líneas de un pedido
@@ -127,27 +126,5 @@ class LineaPedidoService {
     }
   }
 
-  static Future<Uint8List?> descargarPedidoPdf({
-    required int idCliente,
-    required int idPedido,
-  }) async {
-    final url = Uri.parse(
-      "${ApiConstants.clientes}/$idCliente/pedido/$idPedido/pdf",
-    );
-
-    final response = await http.get(
-      url,
-      headers: {
-        "Authorization": "Bearer ${Session.token}",
-        "Accept": "application/pdf",
-      },
-    );
-
-    if (response.statusCode == 200) {
-      return response.bodyBytes; // 🔥 AQUÍ están los bytes del PDF
-    } else {
-      print("❌ Error PDF: ${response.statusCode}");
-      return null;
-    }
-  }
+ 
 }

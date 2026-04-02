@@ -100,7 +100,7 @@ class VendedorService {
 
   /// Actualizar datos del vendedor
   Future<bool> updateVendedor(Vendedor vendedor, {String? password}) async {
-    final url = Uri.parse("${ApiConstants.vendedor}/${vendedor.id}");
+    final url = Uri.parse("${ApiConstants.vendedor}/me");
 
     final Map<String, dynamic> body = {
       "nombre": vendedor.nombre,

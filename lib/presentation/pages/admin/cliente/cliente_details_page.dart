@@ -1,3 +1,4 @@
+import 'package:expositor_app/core/session/session.dart';
 import 'package:expositor_app/data/models/pedido.dart';
 import 'package:expositor_app/data/services/cliente_service.dart';
 import 'package:expositor_app/data/services/pedido_service.dart';
@@ -27,10 +28,12 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsPage> {
   final SecureStorageService secureStorage = SecureStorageService();
 
   late Future<Vendedor?> futureVendedor;
+  late Cliente _cliente;
 
   @override
   void initState() {
     super.initState();
+    _cliente = widget.cliente;
     futureVendedor = vendedorService.getById(widget.cliente.idVendedor);
   }
 
@@ -100,7 +103,7 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsPage> {
   // ============================================================
   @override
   Widget build(BuildContext context) {
-    final cliente = widget.cliente;
+    final cliente = _cliente;
 
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
@@ -109,6 +112,12 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsPage> {
         title: Text(
           "Cliente: ${cliente.nombre}",
           style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        leading: IconButton(
+          onPressed: () {
+            Navigator.pop(context, true); // ✅ avisa que hay cambios
+          },
+          icon: const Icon(Icons.arrow_back),
         ),
       ),
       body: SingleChildScrollView(
@@ -162,12 +171,40 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      "Información del Cliente",
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          "Información del Cliente",
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: "Actualizar cliente",
+                          icon: const Icon(
+                            Icons.edit,
+                            color: Color(0xFF3C75EF),
+                          ),
+                          onPressed: () async {
+                            final updated = await _showUpdateClienteDialog(
+                              context,
+                              _cliente,
+                              isAdmin: Session.isAdmin,
+                            );
+                            if (updated != null) {
+                              setState(() {
+                                _cliente =
+                                    updated; // ✅ ahora sí cambia lo que se pinta
+                                futureVendedor = vendedorService.getById(
+                                  updated.idVendedor,
+                                );
+                              });
+                            }
+                          },
+                        ),
+                      ],
                     ),
 
                     const SizedBox(height: 15),
@@ -175,6 +212,14 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsPage> {
                     _infoRow("ID Cliente", cliente.id.toString()),
                     _infoRow("Nombre", cliente.nombre),
                     _infoRow("CIF", cliente.cif),
+                    _infoRow(
+                      "Teléfono",
+                      cliente.telefono.isNotEmpty ? cliente.telefono : "—",
+                    ),
+                    _infoRow(
+                      "Correo",
+                      cliente.email.isNotEmpty ? cliente.email : "—",
+                    ),
 
                     const SizedBox(height: 10),
 
@@ -206,9 +251,10 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsPage> {
             // -----------------------------------------------------------
             // CARD 2 — GRAFICA DE INGRESO ANUAL
             // -----------------------------------------------------------
+            /*
             _buildGraficaIngresos(),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 20), */
 
             // -----------------------------------------------------------
             // CARD 3 — PEDIDOS + BOTÓN CREAR PEDIDO
@@ -225,7 +271,7 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsPage> {
   // ============================================================
   Widget _buildGraficaIngresos() {
     return FutureBuilder<Map<String, double>>(
-      future: clienteService.getIngresoAnual(widget.cliente.id),
+      future: clienteService.getIngresoAnual(_cliente.id),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -428,7 +474,7 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsPage> {
   // PEDIDOS + BOTÓN NUEVO PEDIDO
   // ============================================================
   Widget _buildPedidosConCrear() {
-    final cliente = widget.cliente;
+    final cliente = _cliente;
 
     return FutureBuilder<List<Pedido>>(
       future: pedidoService.getPedidosByClienteAdmin(cliente.id),
@@ -537,7 +583,10 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsPage> {
                           crossAxisCount: crossAxisCount,
                           crossAxisSpacing: 16,
                           mainAxisSpacing: 16,
-                          childAspectRatio: 1.4,
+                          mainAxisExtent: _pedidoCardHeight(
+                            pedidos,
+                            crossAxisCount,
+                          ),
                         ),
                         itemBuilder: (context, index) {
                           final pedido = pedidos[index];
@@ -569,6 +618,16 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsPage> {
     );
   }
 
+  double _pedidoCardHeight(List<Pedido> pedidos, int crossAxisCount) {
+    final hasAnyComment = pedidos.any((p) => p.comentario.trim().isNotEmpty);
+
+    // cuanto más columnas, más estrecha la card -> más filas de chips -> más alto
+    if (crossAxisCount >= 3) return 370;
+    if (crossAxisCount == 2) return 390;
+
+    return hasAnyComment ? 360 : 320; // 1 columna
+  }
+
   // ============================================================
   // FILA INFO
   // ============================================================
@@ -593,6 +652,173 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Future<Cliente?> _showUpdateClienteDialog(
+    BuildContext context,
+    Cliente cliente, {
+    required bool isAdmin, // 👈 pásalo desde tu estado de auth
+  }) async {
+    final formKey = GlobalKey<FormState>();
+
+    final nombreCtrl = TextEditingController(text: cliente.nombre);
+    final cifCtrl = TextEditingController(text: cliente.cif);
+    final telCtrl = TextEditingController(text: cliente.telefono);
+    final emailCtrl = TextEditingController(text: cliente.email);
+
+    List<Vendedor> vendedores = [];
+    int? selectedIdVendedor = cliente.idVendedor;
+
+    return showDialog<Cliente?>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setLocalState) {
+            Widget buildForm({List<Vendedor>? vendedoresData}) {
+              vendedores = vendedoresData ?? vendedores;
+
+              // Solo si admin y hay vendedores, asegura que selected exista
+              if (isAdmin &&
+                  vendedores.isNotEmpty &&
+                  !vendedores.any((v) => v.id == selectedIdVendedor)) {
+                selectedIdVendedor = vendedores.first.id;
+              }
+
+              return Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextFormField(
+                        controller: nombreCtrl,
+                        decoration: const InputDecoration(labelText: "Nombre"),
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? "Requerido"
+                            : null,
+                      ),
+                      TextFormField(
+                        controller: cifCtrl,
+                        decoration: const InputDecoration(labelText: "CIF"),
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? "Requerido"
+                            : null,
+                      ),
+                      TextFormField(
+                        controller: telCtrl,
+                        decoration: const InputDecoration(
+                          labelText: "Teléfono",
+                        ),
+                        keyboardType: TextInputType.phone,
+                      ),
+                      TextFormField(
+                        controller: emailCtrl,
+                        decoration: const InputDecoration(labelText: "Correo"),
+                        keyboardType: TextInputType.emailAddress,
+                      ),
+
+                      // ✅ SOLO ADMIN ve el desplegable
+                      if (isAdmin) ...[
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<int>(
+                          value: selectedIdVendedor,
+                          decoration: const InputDecoration(
+                            labelText: "Vendedor",
+                          ),
+                          items: (vendedoresData ?? vendedores)
+                              .map(
+                                (v) => DropdownMenuItem<int>(
+                                  value: v.id,
+                                  child: Text("${v.nombre} ${v.apellido}"),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) {
+                            setLocalState(() => selectedIdVendedor = value);
+                          },
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            return AlertDialog(
+              title: const Text("Actualizar cliente"),
+              content: SizedBox(
+                width: 420,
+
+                // ✅ Si NO es admin, NO llamamos a getVendedores()
+                child: isAdmin
+                    ? FutureBuilder<List<Vendedor>>(
+                        future: vendedorService.getVendedores(),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Padding(
+                              padding: EdgeInsets.all(16),
+                              child: Center(child: CircularProgressIndicator()),
+                            );
+                          }
+                          final data = snapshot.data ?? [];
+                          return buildForm(vendedoresData: data);
+                        },
+                      )
+                    : buildForm(),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, null),
+                  child: const Text("Cancelar"),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (!(formKey.currentState?.validate() ?? false)) return;
+
+                    final actualizado = Cliente(
+                      id: cliente.id,
+                      nombre: nombreCtrl.text.trim(),
+                      cif: cifCtrl.text.trim(),
+                      telefono: telCtrl.text.trim(),
+                      email: emailCtrl.text.trim(),
+
+                      // ✅ si NO es admin, mantenemos el vendedor original
+                      idVendedor: isAdmin
+                          ? (selectedIdVendedor ?? cliente.idVendedor)
+                          : cliente.idVendedor,
+
+                      idPedidos: cliente.idPedidos,
+                      pedidosCerrados: cliente.pedidosCerrados,
+                      pedidosAbiertos: cliente.pedidosAbiertos,
+                    );
+
+                    final ok = await clienteService.update(actualizado);
+                    if (!context.mounted) return;
+
+                    if (ok == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("❌ No se pudo actualizar el cliente"),
+                        ),
+                      );
+                      return;
+                    }
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("✅ Cliente actualizado")),
+                    );
+                    Navigator.pop(context, ok);
+                  },
+                  child: const Text("Guardar"),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

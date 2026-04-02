@@ -8,6 +8,7 @@ import 'package:expositor_app/data/services/vendedor_service.dart';
 
 import 'package:expositor_app/presentation/widget/cards/cliente_card.dart';
 import 'package:expositor_app/presentation/pages/admin/cliente/cliente_details_page.dart';
+import 'package:intl_phone_field/intl_phone_field.dart';
 
 // ✅ NUEVO: Session para saber si es admin
 import 'package:expositor_app/core/session/session.dart';
@@ -353,14 +354,19 @@ class _ClientesPageState extends State<ClientesPage> {
 
                       return CardCliente(
                         cliente: cliente,
-                        onTap: () {
-                          Navigator.push(
+
+                        onTap: () async {
+                          await Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (_) =>
                                   ClienteDetailsPage(cliente: cliente),
                             ),
                           );
+
+                          // ✅ SIEMPRE refrescar al volver
+                          await _loadAll();
+                          _applyFilters(); // mantiene buscador + filtro vendedor
                         },
                       );
                     },
@@ -413,69 +419,164 @@ class _ClientesPageState extends State<ClientesPage> {
   }
 
   void _irCrearCliente() {
+    final formKey = GlobalKey<FormState>();
+
     final TextEditingController nombreController = TextEditingController();
     final TextEditingController cifController = TextEditingController();
+    final TextEditingController emailController = TextEditingController();
 
     Vendedor? vendedorSeleccionado;
+    String telefonoCompleto = '';
+
+    bool emailValido(String email) {
+      final regex = RegExp(r'^[\w\.-]+@[\w\.-]+\.\w{2,}$');
+      return regex.hasMatch(email);
+    }
+
+    bool cifValido(String cif) {
+      final value = cif.trim().toUpperCase();
+      if (value.isEmpty) return false;
+
+      // Validación básica: 1 letra opcional + números/letras mínimos
+      final regex = RegExp(r'^[A-Z]?[A-Z0-9]{6,15}$');
+      return regex.hasMatch(value);
+    }
 
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) {
         return StatefulBuilder(
-          builder: (context, setState) {
+          builder: (context, setStateDialog) {
             return AlertDialog(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
               title: const Text("Crear Cliente"),
               content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    /// Nombre
-                    TextField(
-                      controller: nombreController,
-                      decoration: const InputDecoration(
-                        labelText: "Nombre del cliente",
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-
-                    const SizedBox(height: 15),
-
-                    /// CIF
-                    TextField(
-                      controller: cifController,
-                      decoration: const InputDecoration(
-                        labelText: "CIF",
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-
-                    const SizedBox(height: 15),
-
-                    /// 🔥 SOLO SI ES ADMIN
-                    if (_isAdmin)
-                      DropdownButtonFormField<Vendedor>(
-                        value: vendedorSeleccionado,
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextFormField(
+                        controller: nombreController,
+                        textCapitalization: TextCapitalization.words,
                         decoration: const InputDecoration(
-                          labelText: "Seleccionar Vendedor",
+                          labelText: "Nombre del cliente",
                           border: OutlineInputBorder(),
                         ),
-                        items: vendedores.map((v) {
-                          return DropdownMenuItem<Vendedor>(
-                            value: v,
-                            child: Text("${v.nombre} ${v.apellido}"),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            vendedorSeleccionado = value;
-                          });
+                        validator: (value) {
+                          final nombre = value?.trim() ?? '';
+                          if (nombre.isEmpty) {
+                            return "Introduce el nombre del cliente";
+                          }
+                          if (nombre.length < 2) {
+                            return "El nombre es demasiado corto";
+                          }
+                          return null;
                         },
                       ),
-                  ],
+
+                      const SizedBox(height: 15),
+
+                      TextFormField(
+                        controller: cifController,
+                        textCapitalization: TextCapitalization.characters,
+                        decoration: const InputDecoration(
+                          labelText: "CIF",
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) {
+                          final cif = value?.trim() ?? '';
+                          if (cif.isEmpty) {
+                            return "Introduce el CIF";
+                          }
+                          if (!cifValido(cif)) {
+                            return "Introduce un CIF válido";
+                          }
+                          return null;
+                        },
+                      ),
+
+                      const SizedBox(height: 15),
+
+                      IntlPhoneField(
+                        initialCountryCode: 'ES',
+                        disableLengthCheck: false,
+                        decoration: const InputDecoration(
+                          labelText: 'Teléfono',
+                          hintText: '612345678',
+                          border: OutlineInputBorder(),
+                        ),
+                        onChanged: (phone) {
+                          telefonoCompleto = phone.completeNumber;
+                        },
+                        validator: (phone) {
+                          if (phone == null || phone.number.trim().isEmpty) {
+                            return 'Introduce el teléfono';
+                          }
+
+                          final soloNumero = phone.number.trim();
+                          if (soloNumero.length < 7 || soloNumero.length > 15) {
+                            return 'Introduce un número válido';
+                          }
+
+                          return null;
+                        },
+                      ),
+
+                      const SizedBox(height: 15),
+
+                      TextFormField(
+                        controller: emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: const InputDecoration(
+                          labelText: "Correo electrónico",
+                          hintText: "cliente@empresa.com",
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) {
+                          final email = value?.trim() ?? '';
+                          if (email.isEmpty) {
+                            return "Introduce el correo electrónico";
+                          }
+                          if (!emailValido(email)) {
+                            return "Introduce un correo válido";
+                          }
+                          return null;
+                        },
+                      ),
+
+                      const SizedBox(height: 15),
+
+                      if (_isAdmin)
+                        DropdownButtonFormField<Vendedor>(
+                          value: vendedorSeleccionado,
+                          decoration: const InputDecoration(
+                            labelText: "Seleccionar vendedor",
+                            border: OutlineInputBorder(),
+                          ),
+                          items: vendedores.map((v) {
+                            return DropdownMenuItem<Vendedor>(
+                              value: v,
+                              child: Text("${v.nombre} ${v.apellido}"),
+                            );
+                          }).toList(),
+                          validator: (value) {
+                            if (_isAdmin && value == null) {
+                              return "Debes seleccionar un vendedor";
+                            }
+                            return null;
+                          },
+                          onChanged: (value) {
+                            setStateDialog(() {
+                              vendedorSeleccionado = value;
+                            });
+                          },
+                        ),
+                    ],
+                  ),
                 ),
               ),
               actions: [
@@ -485,36 +586,31 @@ class _ClientesPageState extends State<ClientesPage> {
                 ),
                 ElevatedButton(
                   onPressed: () async {
+                    if (!formKey.currentState!.validate()) return;
+
                     final nombre = nombreController.text.trim();
-                    final cif = cifController.text.trim();
+                    final cif = cifController.text.trim().toUpperCase();
+                    final email = emailController.text.trim();
 
-                    if (nombre.isEmpty || cif.isEmpty) {
+                    if (telefonoCompleto.trim().isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text("Todos los campos son obligatorios"),
+                          content: Text("Introduce un teléfono válido"),
                         ),
                       );
                       return;
                     }
 
-                    if (_isAdmin && vendedorSeleccionado == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Debes seleccionar un vendedor"),
-                        ),
-                      );
-                      return;
-                    }
-
-                    // ✅ idVendedor según rol
                     final int? idVendedor = _isAdmin
                         ? vendedorSeleccionado!.id
-                        : Session.userId; // vendedor logueado
+                        : Session.userId;
 
                     final nuevo = await _clienteService.addCliente(
                       nombre,
                       cif,
                       idVendedor,
+                      telefonoCompleto,
+                      email,
                     );
 
                     if (nuevo == null) {
@@ -523,16 +619,14 @@ class _ClientesPageState extends State<ClientesPage> {
                       );
                       return;
                     }
-                    // ✅ 1) Actualiza listas en la página (sin refresh)
+
                     setState(() {
                       allClients.insert(0, nuevo);
                     });
-                    _applyFilters(); // respeta búsqueda + filtro vendedor
+                    _applyFilters();
 
-                    // ✅ 2) Cierra el dialog
                     Navigator.pop(context);
 
-                    // ✅ 3) Navega a detalles
                     Navigator.push(
                       context,
                       MaterialPageRoute(

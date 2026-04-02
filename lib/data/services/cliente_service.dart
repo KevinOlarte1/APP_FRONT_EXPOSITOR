@@ -4,6 +4,7 @@ import 'package:expositor_app/core/constants/api_constants.dart';
 import 'package:expositor_app/core/session/session.dart';
 import 'package:expositor_app/data/models/cliente.dart';
 import 'package:expositor_app/data/services/http_client_jwt.dart';
+import 'package:expositor_app/exceptions/import_error.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
@@ -12,12 +13,16 @@ class ClienteService {
     String nombre,
     String cif,
     int? idVendedor,
+    String telefono,
+    String email,
   ) async {
     final url = Uri.parse(ApiConstants.clientes);
     final body = jsonEncode({
       "nombre": nombre,
       "cif": cif,
       "idVendedor": idVendedor,
+      "telefono": telefono,
+      "email": email,
     });
     final response = await HttpClientJwt.post(url, body: body);
 
@@ -108,7 +113,10 @@ class ClienteService {
     return null;
   }
 
-  Future<bool> importarClientesCsv(Uint8List bytes, String filename) async {
+  Future<ImportError?> importarClientesCsv(
+    Uint8List bytes,
+    String filename,
+  ) async {
     final request = http.MultipartRequest(
       'POST',
       Uri.parse('${ApiConstants.config}/import/clientes'),
@@ -130,13 +138,16 @@ class ClienteService {
 
     final ok = streamed.statusCode == 200;
 
-    if (!ok) {
-      print('❌ ${streamed.statusCode}: $body');
+    if (streamed.statusCode == 200) {
+      return null;
     } else {
-      print('✅ ${streamed.statusCode}: $body');
+      try {
+        final decoded = jsonDecode(body);
+        return ImportError.fromJson(decoded);
+      } catch (e) {
+        return ImportError(id: "unknown", nombre: "Error desconocido");
+      }
     }
-
-    return ok;
   }
 
   Future<bool> deleteDatos() async {
@@ -159,5 +170,35 @@ class ClienteService {
     }
 
     return ok;
+  }
+
+  Future<Cliente?> update(Cliente actualizado) async {
+    final url = Uri.parse("${ApiConstants.clientes}/${actualizado.id}");
+    print("object------");
+    print(actualizado.telefono);
+    final body = jsonEncode({
+      "id": actualizado.id,
+      "nombre": actualizado.nombre,
+      "cif": actualizado.cif,
+      "telefono": actualizado.telefono,
+      "email": actualizado.email,
+      "idVendedor": actualizado.idVendedor,
+    });
+
+    final response = await HttpClientJwt.put(url, body: body);
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final data = jsonDecode(response.body);
+      return Cliente.fromJson(data);
+    }
+
+    // Algunos backends responden 204 sin body
+    if (response.statusCode == 204) {
+      // recarga el cliente actualizado desde el backend para refrescar
+      return await getClienteById(actualizado.id);
+    }
+
+    print("❌ Error updateCliente: ${response.statusCode} - ${response.body}");
+    return null;
   }
 }

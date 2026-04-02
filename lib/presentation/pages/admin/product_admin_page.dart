@@ -69,7 +69,7 @@ class _ProductAdminPageState extends State<ProductAdminPage> {
   void _showCreateOrEditDialog({Producto? producto}) async {
     final result = await showDialog(
       context: context,
-      builder: (_) => ProductDialog(),
+      builder: (_) => ProductDialog(producto: producto),
     );
 
     if (result != null && result is Producto) {
@@ -88,13 +88,14 @@ class _ProductAdminPageState extends State<ProductAdminPage> {
         // EDITAR
         final ok = await ProductoService().updateProducto(result);
         if (ok) {
-          setState(() {
-            final index = _all.indexWhere((p) => p.id == producto.id);
-            if (index != -1) {
-              _all[index] = result;
-              _filtered = List.of(_all);
-            }
-          });
+          if (ok) {
+            // Recargar productos desde la API
+            final productos = await ProductoService().getAllProductos();
+            setState(() {
+              _all = productos;
+              _filtered = productos;
+            });
+          }
         }
       }
     }

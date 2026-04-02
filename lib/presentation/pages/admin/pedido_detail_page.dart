@@ -13,6 +13,7 @@ import 'package:expositor_app/data/services/pedido_service.dart';
 import 'package:expositor_app/data/services/linea_pedido_service.dart';
 import 'package:expositor_app/data/services/producto_service.dart';
 import 'package:expositor_app/data/services/cliente_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class PedidoDetailPage extends StatefulWidget {
   Pedido pedido;
@@ -37,9 +38,13 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
   List<LineaPedido> lineasFiltradas = [];
   int grupoMaxConfig = 1; // Para construir el selector
 
+  late final TextEditingController _comentarioCtrl;
+  bool _guardandoComentario = false;
+
   @override
   void initState() {
     super.initState();
+    _comentarioCtrl = TextEditingController(text: widget.pedido.comentario);
     _loadAll();
   }
 
@@ -100,6 +105,7 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
 
     if (updated != null) {
       setState(() => widget.pedido = updated);
+      _comentarioCtrl.text = updated.comentario;
     }
 
     await _loadLineasPedido();
@@ -177,6 +183,11 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
 
           const SizedBox(height: 30),
 
+          if (cliente != null) //todo: carta con el comentario + btn guardar
+            _buildComentarioCard()
+          else
+            const Center(child: CircularProgressIndicator()),
+
           _buildLineasCard(),
         ],
       ),
@@ -186,6 +197,7 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
   // ===========================================================
   //                  CARD INFORMACIÓN PRINCIPAL
   // ===========================================================
+
   Widget _buildInfoCard(Pedido pedido, Cliente cliente) {
     return Card(
       elevation: 6,
@@ -1086,6 +1098,27 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
               ),
             ),
           ),
+          // 🟢 WHATSAPP (NUEVO)
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF25D366), // verde WhatsApp
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            onPressed: cliente?.telefono != null
+                ? () => _abrirWhatsApp(cliente!.telefono)
+                : null,
+            icon: const Icon(Icons.chat, color: Colors.white),
+            label: Text(
+              "WhatsApp",
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ),
         ],
       );
     }
@@ -1318,6 +1351,174 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
         // si alguna línea falla, seguimos con las demás
         debugPrint("❌ Error clonando línea ${linea.id}: $e");
       }
+    }
+  }
+
+  Widget _buildComentarioCard() {
+    final bool isCerrado = widget.pedido.cerrado;
+
+    return Card(
+      elevation: 6,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shadowColor: Colors.black26,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Título
+            Row(
+              children: [
+                const Icon(Icons.comment, color: Colors.blue),
+                const SizedBox(width: 10),
+                Text(
+                  "Comentario",
+                  style: GoogleFonts.poppins(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black87,
+                  ),
+                ),
+                const Spacer(),
+                if (isCerrado)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      "Cerrado",
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+
+            const SizedBox(height: 14),
+
+            TextField(
+              controller: _comentarioCtrl,
+              maxLines: 4,
+              readOnly: isCerrado,
+              decoration: InputDecoration(
+                hintText: "Añade un comentario para este pedido...",
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: Colors.blue, width: 1.4),
+                ),
+                filled: true,
+                fillColor: isCerrado ? Colors.grey.shade100 : Colors.white,
+                contentPadding: const EdgeInsets.all(14),
+              ),
+            ),
+
+            const SizedBox(height: 14),
+
+            Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton.icon(
+                icon: _guardandoComentario
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.save),
+                label: Text(
+                  _guardandoComentario ? "Guardando..." : "Guardar",
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: (isCerrado || _guardandoComentario)
+                    ? null
+                    : () async {
+                        final text = _comentarioCtrl.text.trim();
+
+                        if (text.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                "El comentario no puede estar vacío",
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                        setState(() => _guardandoComentario = true);
+
+                        final ok = await pedidoService.putComentario(
+                          idCliente: widget.pedido.idCliente,
+                          idPedido: widget.pedido.id,
+                          comentario: _comentarioCtrl.text.trim(),
+                        );
+
+                        setState(() => _guardandoComentario = false);
+
+                        if (ok) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("✅ Comentario actualizado"),
+                            ),
+                          );
+
+                          await _refreshPedido();
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                "❌ Error al actualizar el comentario",
+                              ),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _abrirWhatsApp(String telefono) async {
+    if (telefono.isEmpty) return;
+
+    // Limpia el número (quita espacios, guiones, etc.)
+    final telefonoLimpio = telefono.replaceAll(RegExp(r'\D'), '');
+
+    final url = Uri.parse("https://wa.me/$telefonoLimpio");
+
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("No se pudo abrir WhatsApp")),
+      );
     }
   }
 }

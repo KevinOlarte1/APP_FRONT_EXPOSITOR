@@ -70,7 +70,7 @@ class HttpClientJwt {
     bool retried = false,
   }) async {
     final response = await requestFunction();
-
+    print("Lanzando Peticion API....");
     if (response.statusCode != 401) return response;
 
     // Si ya reintentamos, NO más refresh -> logout y navegar
@@ -84,10 +84,14 @@ class HttpClientJwt {
     }
 
     // 1 intento de refresh
+    print("Lanzando el Refreshh");
     final refreshed = await AuthService.refresh();
     if (!refreshed) {
       await AuthService.logout();
-      throw Exception("Sesión expirada");
+      navigatorKey.currentState?.pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginPage()),
+        (route) => false,
+      );
     }
 
     // Reintento 1 vez marcado

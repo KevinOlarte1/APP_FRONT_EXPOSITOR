@@ -1185,14 +1185,14 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          ok
+          ok == null
               ? "Categorías importadas correctamente"
-              : "Error al importar categorías",
+              : "Error: ${ok?.id} - ${ok?.nombre}",
         ),
       ),
     );
 
-    if (ok) {
+    if (ok == null) {
       setState(() {}); // refresca la grid de categorías
     }
   }
@@ -1291,9 +1291,9 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          ok
+          ok == null
               ? "Productos importados correctamente"
-              : "Error al importar productos",
+              : "Error: ID-${ok?.id} - ${ok?.nombre}",
         ),
       ),
     );
@@ -1319,9 +1319,9 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          ok
+          ok == null
               ? "Clientes importados correctamente"
-              : "Error al importar clientes",
+              : "Error: ID-${ok?.id} - ${ok?.nombre}",
         ),
       ),
     );

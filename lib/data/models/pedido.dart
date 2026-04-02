@@ -5,6 +5,7 @@ class Pedido {
   final String fecha;
   final int idCliente;
   final List<int> idLineaPedido;
+  final String comentario;
 
   final bool cerrado;
   int descuento;
@@ -28,6 +29,7 @@ class Pedido {
     required this.baseImponible,
     required this.precioIva,
     required this.total,
+    required this.comentario,
   });
 
   factory Pedido.fromJson(Map<String, dynamic> json) {
@@ -47,6 +49,7 @@ class Pedido {
       baseImponible: json["baseImponible"] ?? "0.00",
       precioIva: json["precioIva"] ?? "0.00",
       total: json["total"] ?? "0.00",
+      comentario: json["comentario"] ?? "",
     );
   }
 }

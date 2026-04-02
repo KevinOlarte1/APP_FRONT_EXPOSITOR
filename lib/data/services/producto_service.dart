@@ -4,6 +4,7 @@ import 'package:expositor_app/core/constants/api_constants.dart';
 import 'package:expositor_app/core/session/session.dart';
 import 'package:expositor_app/data/models/producto.dart';
 import 'package:expositor_app/data/services/http_client_jwt.dart';
+import 'package:expositor_app/exceptions/import_error.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
@@ -87,7 +88,10 @@ class ProductoService {
     return null;
   }
 
-  Future<bool> importarProductosCsv(Uint8List bytes, String filename) async {
+  Future<ImportError?> importarProductosCsv(
+    Uint8List bytes,
+    String filename,
+  ) async {
     final request = http.MultipartRequest(
       'POST',
       Uri.parse('${ApiConstants.config}/import/productos'),
@@ -109,14 +113,17 @@ class ProductoService {
     final body = await streamed.stream.bytesToString();
 
     final ok = streamed.statusCode == 200;
-
-    if (!ok) {
-      print('❌ ${streamed.statusCode}: $body');
+    if (streamed.statusCode == 200) {
+      return null; // TODO OK
     } else {
-      print('✅ ${streamed.statusCode}: $body');
+      try {
+        final decoded = jsonDecode(body);
+        return ImportError.fromJson(decoded);
+      } catch (e) {
+        // por si el backend devuelve algo raro
+        return ImportError(id: 'unknown', nombre: 'Error desconocido');
+      }
     }
-
-    return ok;
   }
 
   Future<Uint8List?> getPedidosCsv() async {

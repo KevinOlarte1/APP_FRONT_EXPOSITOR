@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:expositor_app/core/session/session.dart';
 import 'package:expositor_app/data/services/http_client_jwt.dart';
+import 'package:expositor_app/exceptions/import_error.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import '../models/categoria.dart';
@@ -61,7 +62,10 @@ class CategoriaService {
     return null;
   }
 
-  Future<bool> importarCategoriasCsv(Uint8List bytes, String filename) async {
+  Future<ImportError?> importarCategoriasCsv(
+    Uint8List bytes,
+    String filename,
+  ) async {
     final request = http.MultipartRequest(
       'POST',
       Uri.parse('${ApiConstants.config}/import/categorias'),
@@ -84,13 +88,17 @@ class CategoriaService {
 
     final ok = streamed.statusCode == 200;
 
-    if (!ok) {
-      print('❌ ${streamed.statusCode}: $body');
+    if (streamed.statusCode == 200) {
+      return null; // TODO OK
     } else {
-      print('✅ ${streamed.statusCode}: $body');
+      try {
+        final decoded = jsonDecode(body);
+        return ImportError.fromJson(decoded);
+      } catch (e) {
+        // por si el backend devuelve algo raro
+        return ImportError(id: 'unknown', nombre: 'Error desconocido');
+      }
     }
-
-    return ok;
   }
 
   Future<Uint8List?> getCategoriasCsv() async {
