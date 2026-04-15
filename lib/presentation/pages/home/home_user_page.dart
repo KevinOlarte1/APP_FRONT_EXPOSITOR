@@ -25,17 +25,16 @@ class _HomeUserPageState extends State<HomeUserPage>
   String? _errorMessage;
 
   int _selectedIndex = 0;
-  late PageController _pageController;
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
 
   // Para el sidebar en desktop
   bool _sidebarExpanded = true;
+  bool _showSidebarText = true;
 
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(initialPage: _selectedIndex);
     _fadeController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
@@ -49,7 +48,6 @@ class _HomeUserPageState extends State<HomeUserPage>
 
   @override
   void dispose() {
-    _pageController.dispose();
     _fadeController.dispose();
     super.dispose();
   }
@@ -92,15 +90,44 @@ class _HomeUserPageState extends State<HomeUserPage>
     }
   }
 
+  Future<void> _toggleSidebar() async {
+    if (_sidebarExpanded) {
+      // Primero ocultamos texto, luego cerramos
+      setState(() {
+        _showSidebarText = false;
+      });
+
+      await Future.delayed(const Duration(milliseconds: 80));
+
+      if (!mounted) return;
+      setState(() {
+        _sidebarExpanded = false;
+      });
+    } else {
+      // Primero abrimos ancho, luego mostramos texto
+      setState(() {
+        _sidebarExpanded = true;
+      });
+
+      await Future.delayed(const Duration(milliseconds: 170));
+
+      if (!mounted) return;
+      setState(() {
+        _showSidebarText = true;
+      });
+    }
+  }
+
   void _onItemTapped(int index) {
     if (index == _selectedIndex) return;
 
     setState(() => _selectedIndex = index);
+    /*
     _pageController.animateToPage(
       index,
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOutCubic,
-    );
+    ); */
   }
 
   /// Función de logout
@@ -332,9 +359,8 @@ class _HomeUserPageState extends State<HomeUserPage>
           Expanded(
             child: FadeTransition(
               opacity: _fadeAnimation,
-              child: PageView(
-                controller: _pageController,
-                physics: const NeverScrollableScrollPhysics(),
+              child: IndexedStack(
+                index: _selectedIndex,
                 children: _buildPages(vendedor),
               ),
             ),
@@ -390,7 +416,7 @@ class _HomeUserPageState extends State<HomeUserPage>
                     ),
                   ),
                 ),
-                if (_sidebarExpanded) ...[
+                if (_showSidebarText) ...[
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -427,29 +453,27 @@ class _HomeUserPageState extends State<HomeUserPage>
           // Toggle sidebar button
           Padding(
             padding: EdgeInsets.symmetric(
-              horizontal: _sidebarExpanded ? 16 : 14,
+              horizontal: _showSidebarText ? 16 : 14,
             ),
             child: InkWell(
-              onTap: () {
-                setState(() => _sidebarExpanded = !_sidebarExpanded);
-              },
+              onTap: _toggleSidebar,
               borderRadius: BorderRadius.circular(10),
               child: Container(
                 padding: EdgeInsets.symmetric(
                   vertical: 10,
-                  horizontal: _sidebarExpanded ? 12 : 0,
+                  horizontal: _showSidebarText ? 12 : 0,
                 ),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.05),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
-                  mainAxisAlignment: _sidebarExpanded
+                  mainAxisAlignment: _showSidebarText
                       ? MainAxisAlignment.start
                       : MainAxisAlignment.center,
                   children: [
                     AnimatedRotation(
-                      turns: _sidebarExpanded ? 0 : 0.5,
+                      turns: _showSidebarText ? 0 : 0.5,
                       duration: const Duration(milliseconds: 200),
                       child: Icon(
                         Icons.chevron_left_rounded,
@@ -457,7 +481,7 @@ class _HomeUserPageState extends State<HomeUserPage>
                         size: 22,
                       ),
                     ),
-                    if (_sidebarExpanded) ...[
+                    if (_showSidebarText) ...[
                       const SizedBox(width: 10),
                       Text(
                         'Contraer menú',
@@ -512,7 +536,7 @@ class _HomeUserPageState extends State<HomeUserPage>
           borderRadius: BorderRadius.circular(12),
           child: Container(
             padding: EdgeInsets.symmetric(
-              horizontal: _sidebarExpanded ? 16 : 12,
+              horizontal: _showSidebarText ? 16 : 12,
               vertical: 14,
             ),
             decoration: BoxDecoration(
@@ -521,7 +545,7 @@ class _HomeUserPageState extends State<HomeUserPage>
               border: Border.all(color: Colors.red.withOpacity(0.2)),
             ),
             child: Row(
-              mainAxisAlignment: _sidebarExpanded
+              mainAxisAlignment: _showSidebarText
                   ? MainAxisAlignment.start
                   : MainAxisAlignment.center,
               children: [
@@ -530,7 +554,7 @@ class _HomeUserPageState extends State<HomeUserPage>
                   color: Colors.red.shade300,
                   size: 22,
                 ),
-                if (_sidebarExpanded) ...[
+                if (_showSidebarText) ...[
                   const SizedBox(width: 14),
                   Text(
                     'Cerrar sesión',
@@ -556,11 +580,11 @@ class _HomeUserPageState extends State<HomeUserPage>
   }) {
     return Padding(
       padding: EdgeInsets.symmetric(
-        horizontal: _sidebarExpanded ? 12 : 14,
+        horizontal: _showSidebarText ? 12 : 14,
         vertical: 4,
       ),
       child: Tooltip(
-        message: _sidebarExpanded ? '' : item.label,
+        message: _showSidebarText ? '' : item.label,
         child: Material(
           color: Colors.transparent,
           child: InkWell(
@@ -569,7 +593,7 @@ class _HomeUserPageState extends State<HomeUserPage>
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               padding: EdgeInsets.symmetric(
-                horizontal: _sidebarExpanded ? 16 : 12,
+                horizontal: _showSidebarText ? 16 : 12,
                 vertical: 14,
               ),
               decoration: BoxDecoration(
@@ -582,7 +606,7 @@ class _HomeUserPageState extends State<HomeUserPage>
                     : null,
               ),
               child: Row(
-                mainAxisAlignment: _sidebarExpanded
+                mainAxisAlignment: _showSidebarText
                     ? MainAxisAlignment.start
                     : MainAxisAlignment.center,
                 children: [
@@ -595,7 +619,7 @@ class _HomeUserPageState extends State<HomeUserPage>
                       size: 22,
                     ),
                   ),
-                  if (_sidebarExpanded) ...[
+                  if (_showSidebarText) ...[
                     const SizedBox(width: 14),
                     Text(
                       item.label,
@@ -627,9 +651,8 @@ class _HomeUserPageState extends State<HomeUserPage>
       ),
       body: FadeTransition(
         opacity: _fadeAnimation,
-        child: PageView(
-          controller: _pageController,
-          physics: const NeverScrollableScrollPhysics(),
+        child: IndexedStack(
+          index: _selectedIndex,
           children: _buildPages(vendedor),
         ),
       ),
