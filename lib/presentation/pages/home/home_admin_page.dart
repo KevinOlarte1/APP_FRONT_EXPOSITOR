@@ -3,7 +3,7 @@ import 'package:expositor_app/data/models/vendedor.dart';
 import 'package:expositor_app/data/services/vendedor_service.dart';
 import 'package:expositor_app/presentation/pages/admin/cliente/cliente_page.dart';
 import 'package:expositor_app/presentation/pages/admin/dashboard_admin_page.dart';
-import 'package:expositor_app/presentation/pages/admin/config/new_config_vendedor_admin_page.dart';
+import 'package:expositor_app/presentation/pages/admin/config/config_vendedor_admin_page.dart';
 import 'package:expositor_app/presentation/pages/login/login_page.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';

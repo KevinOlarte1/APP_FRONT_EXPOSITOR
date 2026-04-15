@@ -1,22 +1,16 @@
-import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:expositor_app/core/session/session.dart';
+import 'package:expositor_app/data/services/categoria_service.dart';
 import 'package:expositor_app/data/services/cliente_service.dart';
 import 'package:expositor_app/data/services/producto_service.dart';
+import 'package:expositor_app/presentation/pages/admin/product_admin_page.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:expositor_app/core/session/session.dart';
 import 'package:expositor_app/data/models/vendedor.dart';
-import 'package:expositor_app/data/models/categoria.dart';
 import 'package:expositor_app/data/services/vendedor_service.dart';
-import 'package:expositor_app/data/services/categoria_service.dart';
-
-import 'package:expositor_app/presentation/pages/admin/config/config_vendedor_detail_page.dart';
-import 'package:expositor_app/presentation/widget/config/admin_menu_tile.dart';
-import 'package:expositor_app/presentation/pages/admin/product_admin_page.dart';
-import 'package:expositor_app/core/services/file_saver.dart';
 import 'package:expositor_app/data/services/parametros_globales_service.dart';
 import 'package:expositor_app/utils/download/download.dart';
 
@@ -32,1052 +26,283 @@ class ConfigVendedorPage extends StatefulWidget {
 }
 
 class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
-  final VendedorService vendedorService = VendedorService();
+  final VendedorService _vendedorService = VendedorService();
   final ProductoService productoService = ProductoService();
   final ClienteService clienteService = ClienteService();
   final CategoriaService categoriaService = CategoriaService();
-  final ParametrosGlobalesService paramService = ParametrosGlobalesService();
+  final ParametrosGlobalesService _paramService = ParametrosGlobalesService();
 
-  late TextEditingController nombreCtrl;
-  late TextEditingController apellidoCtrl;
-  late TextEditingController emailCtrl;
-  final TextEditingController passwordCtrl = TextEditingController();
+  late final TextEditingController _nombreCtrl;
+  late final TextEditingController _apellidoCtrl;
+  late final TextEditingController _emailCtrl;
+  late final TextEditingController _passwordCtrl;
 
-  // Controllers
-  late TextEditingController descuentoCtrl;
-  late TextEditingController ivaCtrl;
-  late TextEditingController maxGruposCtrl;
+  late final TextEditingController _ivaCtrl;
+  late final TextEditingController _descuentoCtrl;
 
-  bool loadingDefaults = true;
-  bool isSaving = false;
+  bool _savingProfile = false;
+  bool _savingPedidoConfig = false;
+  bool _loadingPedidoConfig = true;
 
   @override
   void initState() {
     super.initState();
-    nombreCtrl = TextEditingController();
-    apellidoCtrl = TextEditingController();
-    emailCtrl = TextEditingController();
 
-    descuentoCtrl = TextEditingController();
-    ivaCtrl = TextEditingController();
-    maxGruposCtrl = TextEditingController();
+    _nombreCtrl = TextEditingController(text: widget.vendedorActual.nombre);
+    _apellidoCtrl = TextEditingController(text: widget.vendedorActual.apellido);
+    _emailCtrl = TextEditingController(text: widget.vendedorActual.email);
+    _passwordCtrl = TextEditingController();
 
-    _loadPedidoDefaults();
+    _ivaCtrl = TextEditingController();
+    _descuentoCtrl = TextEditingController();
+
+    _loadPedidoConfig();
   }
 
-  // ===============================================================
-  // INPUT FIELD
-  // ===============================================================
-  Widget _input({
-    required String label,
-    required String placeholder,
-    required TextEditingController controller,
-    bool obscure = false,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500),
+  @override
+  void dispose() {
+    _nombreCtrl.dispose();
+    _apellidoCtrl.dispose();
+    _emailCtrl.dispose();
+    _passwordCtrl.dispose();
+    _ivaCtrl.dispose();
+    _descuentoCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveFile(Uint8List bytes, String filename) async {
+    await downloadBytes(bytes, filename);
+  }
+
+  Future<void> _loadPedidoConfig() async {
+    try {
+      final cfg = await _paramService.getParams();
+
+      _ivaCtrl.text = (cfg['iva'] ?? '').toString();
+      _descuentoCtrl.text = (cfg['descuento'] ?? '').toString();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo cargar la configuración de pedidos.'),
         ),
-        const SizedBox(height: 6),
-        TextField(
-          controller: controller,
-          obscureText: obscure,
-          style: GoogleFonts.poppins(),
-          decoration: InputDecoration(
-            hintText: placeholder,
-            hintStyle: GoogleFonts.poppins(color: Colors.grey.shade400),
-            filled: true,
-            fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(
-              vertical: 14,
-              horizontal: 14,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey.shade300),
-            ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _loadingPedidoConfig = false);
+      }
+    }
+  }
+
+  Future<void> _saveProfile() async {
+    setState(() => _savingProfile = true);
+
+    try {
+      final updated = Vendedor(
+        id: widget.vendedorActual.id,
+        nombre: _nombreCtrl.text.trim(),
+        apellido: _apellidoCtrl.text.trim(),
+        email: _emailCtrl.text.trim(),
+        role: widget.vendedorActual.role,
+      );
+
+      final success = await _vendedorService.updateVendedor(
+        updated,
+        password: _passwordCtrl.text.trim().isEmpty
+            ? null
+            : _passwordCtrl.text.trim(),
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            success
+                ? 'Datos del vendedor actualizados correctamente.'
+                : 'No se pudo actualizar el perfil.',
           ),
+          backgroundColor: success ? Colors.green : Colors.red,
         ),
-        const SizedBox(height: 16),
-      ],
-    );
+      );
+
+      if (success) {
+        _passwordCtrl.clear();
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ocurrió un error al guardar los datos del vendedor.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _savingProfile = false);
+      }
+    }
   }
 
-  // ===============================================================
-  // SAVE VENDEDOR
-  // ===============================================================
-  Future<void> _save() async {
-    setState(() => isSaving = true);
+  Future<void> _savePedidoConfig() async {
+    final iva = double.tryParse(_ivaCtrl.text.trim());
+    final descuento = double.tryParse(_descuentoCtrl.text.trim());
 
-    final updated = Vendedor(
-      id: widget.vendedorActual.id,
-      nombre: nombreCtrl.text.isEmpty
-          ? widget.vendedorActual.nombre
-          : nombreCtrl.text,
-      apellido: apellidoCtrl.text.isEmpty
-          ? widget.vendedorActual.apellido
-          : apellidoCtrl.text,
-      email: emailCtrl.text.isEmpty
-          ? widget.vendedorActual.email
-          : emailCtrl.text,
-      role: widget.vendedorActual.role,
-    );
+    if (iva == null || descuento == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('IVA y descuento deben ser valores numéricos.'),
+        ),
+      );
+      return;
+    }
 
-    final success = await vendedorService.updateVendedor(
-      updated,
-      password: passwordCtrl.text.isEmpty ? null : passwordCtrl.text,
-    );
+    if (iva < 0 || iva > 100 || descuento < 0 || descuento > 100) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('IVA y descuento deben estar entre 0 y 100.'),
+        ),
+      );
+      return;
+    }
 
-    setState(() => isSaving = false);
+    setState(() => _savingPedidoConfig = true);
+
+    try {
+      final ok = await _paramService.saveParams(
+        iva: iva,
+        descuento: descuento,
+        grupoMax: 1,
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            ok
+                ? 'Configuración de pedidos guardada.'
+                : 'No se pudo guardar la configuración.',
+          ),
+          backgroundColor: ok ? Colors.green : Colors.red,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ocurrió un error al guardar la configuración.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _savingPedidoConfig = false);
+      }
+    }
+  }
+
+  Future<void> _importProductosCsv() async {
+    Uint8List? bytes;
+    String? filename;
+
+    if (kIsWeb) {
+      // Usa el archivo web que ya tienes creado (más seguro)
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+        withData: true,
+      );
+      if (result == null) return;
+
+      bytes = result.files.first.bytes;
+      filename = result.files.first.name;
+    } else {
+      // ANDROID / iOS
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+        withData: true,
+      );
+      if (result == null) return;
+
+      bytes = result.files.first.bytes!;
+      filename = result.files.first.name;
+    }
+
+    final ok = await productoService.importarProductosCsv(bytes!, filename!);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          success ? "Cambios guardados correctamente" : "Error al actualizar",
-          style: GoogleFonts.poppins(),
-        ),
-        backgroundColor: success ? Colors.green : Colors.red,
-      ),
-    );
-  }
-
-  // ===============================================================
-  // CARD WRAPPER
-  // ===============================================================
-  Widget _card({required String title, required Widget child}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      padding: const EdgeInsets.fromLTRB(20, 22, 20, 26),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: GoogleFonts.poppins(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 14),
-          child,
-        ],
-      ),
-    );
-  }
-
-  // ===============================================================
-  // CATEGORY CARD
-  // ===============================================================
-  Widget _buildCategoryCard(Categoria categoria) {
-    return SizedBox(
-      width: 150,
-      height: 130,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.07),
-              blurRadius: 12,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: Center(
-                child: Text(
-                  categoria.nombre,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                InkWell(
-                  onTap: () => _openEditCategoria(categoria),
-                  child: const Icon(Icons.edit, size: 20, color: Colors.green),
-                ),
-                InkWell(
-                  onTap: () {},
-                  child: const Icon(Icons.delete, size: 20, color: Colors.red),
-                ),
-              ],
-            ),
-          ],
+          ok == null
+              ? "Productos importados correctamente"
+              : "Error: ID-${ok?.id} - ${ok?.nombre}",
         ),
       ),
     );
   }
 
-  // ===============================================================
-  // ADD CARD
-  // ===============================================================
-  Widget _buildAddCard() {
-    return InkWell(
-      onTap: _openAddCategoria,
-      borderRadius: BorderRadius.circular(16),
-      child: SizedBox(
-        width: 150,
-        height: 130,
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.07),
-                blurRadius: 12,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: const Center(
-            child: Icon(Icons.add, size: 44, color: Colors.blue),
-          ),
+  Future<void> _importCategoriasCsv() async {
+    Uint8List? bytes;
+    String? filename;
+
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['csv'],
+      withData: true,
+    );
+
+    if (result == null) return;
+
+    bytes = result.files.first.bytes!;
+    filename = result.files.first.name;
+
+    final ok = await categoriaService.importarCategoriasCsv(bytes, filename);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok == null
+              ? "Categorías importadas correctamente"
+              : "Error: ${ok?.id} - ${ok?.nombre}",
+        ),
+      ),
+    );
+
+    if (ok == null) {
+      setState(() {}); // refresca la grid de categorías
+    }
+  }
+
+  Future<void> _importClientesCsv() async {
+    Uint8List? bytes;
+    String? filename;
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['csv'],
+      withData: true,
+    );
+
+    if (result == null) return;
+
+    bytes = result.files.first.bytes!;
+    filename = result.files.first.name;
+
+    final ok = await clienteService.importarClientesCsv(bytes, filename);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok == null
+              ? "Clientes importados correctamente"
+              : "Error: ID-${ok?.id} - ${ok?.nombre}",
         ),
       ),
     );
   }
 
-  // ===============================================================
-  // OPEN DIALOG CATEGORÍA
-  // ===============================================================
-  void _showCategoriaDialog({
-    required String title,
-    Categoria? categoria,
-    required Function(String nombre) onSave,
-  }) {
-    final TextEditingController controller = TextEditingController(
-      text: categoria?.nombre ?? "",
-    );
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            width: 400,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  style: GoogleFonts.poppins(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-
-                TextField(
-                  controller: controller,
-                  decoration: InputDecoration(
-                    labelText: "Nombre de la categoría",
-                    labelStyle: GoogleFonts.poppins(),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 26),
-
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: Text(
-                        "Cancelar",
-                        style: GoogleFonts.poppins(color: Colors.black87),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    ElevatedButton(
-                      onPressed: () async {
-                        final nombre = controller.text.trim();
-                        if (nombre.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text("El nombre no puede estar vacío"),
-                            ),
-                          );
-                          return;
-                        }
-
-                        await onSave(nombre);
-                        Navigator.pop(context);
-                        setState(() {});
-
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              categoria == null
-                                  ? "Categoría creada"
-                                  : "Categoría actualizada",
-                              style: GoogleFonts.poppins(),
-                            ),
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF3C75EF),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 12,
-                        ),
-                      ),
-                      child: Text(
-                        "Guardar",
-                        style: GoogleFonts.poppins(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _openAddCategoria() {
-    _showCategoriaDialog(
-      title: "Nueva categoría",
-      categoria: null,
-      onSave: (nombre) async {
-        await categoriaService.addCategoria(nombre);
-      },
-    );
-  }
-
-  void _openEditCategoria(Categoria categoria) {
-    _showCategoriaDialog(
-      title: "Editar categoría",
-      categoria: categoria,
-      onSave: (nuevoNombre) async {
-        final actualizado = await categoriaService.updateCategoria(
-          categoria.id,
-          nuevoNombre,
-        );
-
-        if (actualizado != null) {
-          categoria.nombre = actualizado.nombre;
-        }
-      },
-    );
-  }
-
-  // ===============================================================
-  // VENDEDOR CARD
-  // ===============================================================
-  Widget _buildVendedorCard(Vendedor vendedor) {
-    return SizedBox(
-      width: 150,
-      height: 160,
-
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => ConfigVendedorDetailPage(vendedor: vendedor),
-            ),
-          ).then((updatedVendedor) {
-            if (updatedVendedor != null) {
-              setState(() {});
-            }
-          });
-        },
-
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.07),
-                blurRadius: 12,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          padding: const EdgeInsets.all(12),
-
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              CircleAvatar(
-                radius: 26,
-                backgroundImage: NetworkImage(vendedor.urlAvatar),
-              ),
-
-              Column(
-                children: [
-                  Text(
-                    "${vendedor.nombre} ${vendedor.apellido}",
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    vendedor.email,
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.poppins(
-                      fontSize: 11,
-                      color: Colors.grey.shade700,
-                    ),
-                  ),
-                ],
-              ),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
-                  Icon(Icons.delete, size: 20, color: Colors.red),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAddVendedorCard() {
-    return InkWell(
-      onTap: () {
-        _openAddVendedorDialog();
-      },
-      borderRadius: BorderRadius.circular(16),
-      child: SizedBox(
-        width: 150,
-        height: 160,
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.07),
-                blurRadius: 12,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: const Center(
-            child: Icon(Icons.add, size: 44, color: Colors.blue),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _openAddVendedorDialog() {
-    final nombreCtrl = TextEditingController();
-    final apellidoCtrl = TextEditingController();
-    final emailCtrl = TextEditingController();
-    final passCtrl = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            width: 400,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  "Crear Vendedor",
-                  style: GoogleFonts.poppins(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-                TextField(
-                  controller: nombreCtrl,
-                  decoration: InputDecoration(
-                    labelText: "Nombre",
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-                TextField(
-                  controller: apellidoCtrl,
-                  decoration: InputDecoration(
-                    labelText: "Apellido",
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-                TextField(
-                  controller: emailCtrl,
-                  decoration: InputDecoration(
-                    labelText: "Email",
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-                TextField(
-                  controller: passCtrl,
-                  decoration: InputDecoration(
-                    labelText: "Contraseña",
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 22),
-
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: Text(
-                        "Cancelar",
-                        style: GoogleFonts.poppins(color: Colors.black87),
-                      ),
-                    ),
-
-                    const SizedBox(width: 10),
-
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF3C75EF),
-                      ),
-                      onPressed: () async {
-                        final res = await vendedorService.createVendedor(
-                          nombre: nombreCtrl.text,
-                          apellido: apellidoCtrl.text,
-                          email: emailCtrl.text,
-                          password: passCtrl.text,
-                        );
-
-                        Navigator.pop(context);
-
-                        if (res != null) {
-                          setState(() {});
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                "Vendedor creado correctamente",
-                                style: GoogleFonts.poppins(),
-                              ),
-                            ),
-                          );
-                        }
-                      },
-                      child: Text(
-                        "Crear",
-                        style: GoogleFonts.poppins(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // ===============================================================
-  // BUILD UI
-  // ===============================================================
-  @override
-  Widget build(BuildContext context) {
-    final v = widget.vendedorActual;
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF3F5FB),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(22),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ---------------------------------------------------
-            // CARD 1 — DATOS DEL VENDEDOR
-            // ---------------------------------------------------
-            _card(
-              title: "Datos del vendedor",
-              child: Column(
-                children: [
-                  Center(
-                    child: CircleAvatar(
-                      radius: 45,
-                      backgroundImage: NetworkImage(v.urlAvatar),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  _input(
-                    label: "Nombre",
-                    placeholder: v.nombre,
-                    controller: nombreCtrl,
-                  ),
-                  _input(
-                    label: "Apellido",
-                    placeholder: v.apellido,
-                    controller: apellidoCtrl,
-                  ),
-                  _input(
-                    label: "Correo",
-                    placeholder: v.email,
-                    controller: emailCtrl,
-                  ),
-                  _input(
-                    label: "Nueva contraseña",
-                    placeholder: "******** (opcional)",
-                    controller: passwordCtrl,
-                    obscure: true,
-                  ),
-
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    width: 200,
-                    child: ElevatedButton(
-                      onPressed: isSaving ? null : _save,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF3C75EF),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: isSaving
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : Text(
-                              "Guardar cambios",
-                              style: GoogleFonts.poppins(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            if (Session.isAdmin) ...[
-              // ---------------------------------------------------
-              // CARD 2 — VALORES POR DEFECTO PARA PEDIDOS
-              // ---------------------------------------------------
-              _card(
-                title: "Valores por defecto para pedidos",
-                child: loadingDefaults
-                    ? const Center(child: CircularProgressIndicator())
-                    : Column(
-                        children: [
-                          _input(
-                            label: "Descuento (%)",
-                            placeholder: "0 - 100",
-                            controller: descuentoCtrl,
-                          ),
-
-                          _input(
-                            label: "IVA (%)",
-                            placeholder: "0 - 100",
-                            controller: ivaCtrl,
-                          ),
-
-                          _input(
-                            label: "Máximo de grupos",
-                            placeholder: "1 - 50",
-                            controller: maxGruposCtrl,
-                          ),
-
-                          const SizedBox(height: 10),
-
-                          SizedBox(
-                            width: 220,
-                            child: ElevatedButton(
-                              onPressed: _savePedidoDefaults,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF3C75EF),
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 14,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              child: Text(
-                                "Guardar valores",
-                                style: GoogleFonts.poppins(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-              ),
-
-              // ---------------------------------------------------
-              // CARD 3 — ADMINISTRAR CATEGORÍAS
-              // ---------------------------------------------------
-              _card(
-                title: "Administrar categorías",
-                child: FutureBuilder<List<Categoria>>(
-                  future: categoriaService.getCategorias(),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-
-                    final categorias = snapshot.data!;
-
-                    return GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: categorias.length + 1,
-                      gridDelegate:
-                          const SliverGridDelegateWithMaxCrossAxisExtent(
-                            maxCrossAxisExtent: 180,
-                            mainAxisSpacing: 16,
-                            crossAxisSpacing: 16,
-                            childAspectRatio: 150 / 130,
-                          ),
-                      itemBuilder: (context, index) {
-                        if (index == categorias.length) {
-                          return _buildAddCard();
-                        }
-                        return _buildCategoryCard(categorias[index]);
-                      },
-                    );
-                  },
-                ),
-              ),
-
-              // ---------------------------------------------------
-              // CARD 4 — ADMINISTRAR VENDEDORES
-              // ---------------------------------------------------
-              _card(
-                title: "Administrar vendedores",
-                child: FutureBuilder<List<Vendedor>>(
-                  future: vendedorService.getVendedores(),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-
-                    final vendedores = snapshot.data!;
-
-                    return GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: vendedores.length + 1,
-                      gridDelegate:
-                          const SliverGridDelegateWithMaxCrossAxisExtent(
-                            maxCrossAxisExtent: 200,
-                            mainAxisSpacing: 16,
-                            crossAxisSpacing: 16,
-                            childAspectRatio: 150 / 160,
-                          ),
-                      itemBuilder: (context, index) {
-                        if (index == vendedores.length) {
-                          return _buildAddVendedorCard();
-                        }
-                        return _buildVendedorCard(vendedores[index]);
-                      },
-                    );
-                  },
-                ),
-              ),
-
-              // ---------------------------------------------------
-              // CARD 5 — EXPORTACIÓN CSV
-              // ---------------------------------------------------
-              _card(
-                title: "Exportación",
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Descargar datos en formato CSV",
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // BOTÓN EXPORTAR CLIENTES
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.download),
-                        onPressed: _exportClientesCsv,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF3C75EF),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        label: Text(
-                          "Exportar clientes (CSV)",
-                          style: GoogleFonts.poppins(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // BOTÓN EXPORTAR PRODUCTOS
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.download),
-                        onPressed: _exportProductosCsv,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        label: Text(
-                          "Exportar productos (CSV)",
-                          style: GoogleFonts.poppins(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // BOTÓN EXPORTAR PEDIDOS
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.download),
-                        onPressed: _exportPedidosCsv,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.deepOrange, // Nuevo color
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        label: Text(
-                          "Exportar pedidos (CSV)",
-                          style: GoogleFonts.poppins(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // BOTÓN EXPORTAR CATEGORÍAS
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.download),
-                        onPressed: _exportCategoriasCsv,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.teal,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        label: Text(
-                          "Exportar categorías (CSV)",
-                          style: GoogleFonts.poppins(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // ---------------------------------------------------
-              // CARD 6— IMPORTACIONES
-              // ---------------------------------------------------
-              _card(
-                title: "Importaciones",
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Subir archivos CSV para cargar productos o clientes al sistema.",
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // BOTÓN — Importar productos
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.upload_file),
-                        onPressed: _importProductosCsv,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        label: Text(
-                          "Importar productos (CSV)",
-                          style: GoogleFonts.poppins(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // BOTÓN — Importar clientes
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.upload_file),
-                        onPressed: _importClientesCsv,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.deepPurple,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        label: Text(
-                          "Importar clientes (CSV)",
-                          style: GoogleFonts.poppins(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // BOTÓN — Importar categorías
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.upload_file),
-                        onPressed: _importCategoriasCsv,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.teal,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        label: Text(
-                          "Importar categorías (CSV)",
-                          style: GoogleFonts.poppins(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // ---------------------------------------------------
-              // CARD 7 — ADMINISTRAR PRODUCTOS (MODULARIZADO)
-              // ---------------------------------------------------
-              AdminMenuTile(
-                title: "Administrar Productos",
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ProductAdminPage()),
-                  );
-                },
-              ),
-              AdminMenuTile(
-                title: "Borrar datos de categorias/producto/cliente",
-                onTap: _confirmarBorrado,
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
+  Future<void> _importVendedoresCsv() async {}
 
   Future<void> _exportClientesCsv() async {
     ScaffoldMessenger.of(
@@ -1122,28 +347,6 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
     );
   }
 
-  Future<void> _exportPedidosCsv() async {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text("Descargando pedidos...")));
-
-    final data = await productoService
-        .getPedidosCsv(); // <-- AÚN lo creamos abajo
-
-    if (data == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Error al descargar CSV")));
-      return;
-    }
-
-    await _saveFile(data, "pedidos.csv");
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Pedidos exportados correctamente.")),
-    );
-  }
-
   Future<void> _exportProductosCsv() async {
     ScaffoldMessenger.of(
       context,
@@ -1165,218 +368,1263 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
     );
   }
 
-  Future<void> _importCategoriasCsv() async {
-    Uint8List? bytes;
-    String? filename;
+  Future<void> _exportVendedoresCsv() async {}
 
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['csv'],
-      withData: true,
-    );
-
-    if (result == null) return;
-
-    bytes = result.files.first.bytes!;
-    filename = result.files.first.name;
-
-    final ok = await categoriaService.importarCategoriasCsv(bytes, filename);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          ok == null
-              ? "Categorías importadas correctamente"
-              : "Error: ${ok?.id} - ${ok?.nombre}",
-        ),
-      ),
-    );
-
-    if (ok == null) {
-      setState(() {}); // refresca la grid de categorías
-    }
-  }
-
-  Future<void> _loadPedidoDefaults() async {
-    try {
-      final cfg = await paramService.getParams();
-
-      print("CONFIG RECIBIDA: $cfg"); // 👈 DEBUG
-
-      descuentoCtrl.text = cfg["descuento"].toString();
-      ivaCtrl.text = cfg["iva"].toString();
-      maxGruposCtrl.text = cfg["grupoMax"].toString();
-    } catch (e) {
-      print("❌ Error cargando parámetros globales: $e"); // 👈 VER ERROR REAL
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Error cargando parámetros globales.")),
-      );
-    }
-
-    setState(() => loadingDefaults = false);
-  }
-
-  Future<void> _savePedidoDefaults() async {
-    final d = double.tryParse(descuentoCtrl.text) ?? -1;
-    final i = double.tryParse(ivaCtrl.text) ?? -1;
-    final g = int.tryParse(maxGruposCtrl.text) ?? -1;
-
-    if (d < 0 || d > 100 || i < 0 || i > 100) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("IVA y descuento deben estar entre 0 y 100."),
-        ),
-      );
-      return;
-    }
-
-    if (g <= 0 || g > 50) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("El máximo de grupos debe estar entre 1 y 50."),
-        ),
-      );
-      return;
-    }
-
-    final ok = await paramService.saveParams(iva: i, descuento: d, grupoMax: g);
-
-    if (!ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Error guardando en el servidor.")),
-      );
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Valores guardados correctamente.")),
+  Future<void> _onTapProductos() async {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ProductAdminPage()),
     );
   }
 
-  Future<void> _saveFile(Uint8List bytes, String filename) async {
-    await downloadBytes(bytes, filename);
-  }
-
-  Future<void> _importProductosCsv() async {
-    Uint8List? bytes;
-    String? filename;
-
-    if (kIsWeb) {
-      // Usa el archivo web que ya tienes creado (más seguro)
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['csv'],
-        withData: true,
-      );
-      if (result == null) return;
-
-      bytes = result.files.first.bytes;
-      filename = result.files.first.name;
-    } else {
-      // ANDROID / iOS
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['csv'],
-        withData: true,
-      );
-      if (result == null) return;
-
-      bytes = result.files.first.bytes!;
-      filename = result.files.first.name;
-    }
-
-    final ok = await productoService.importarProductosCsv(bytes!, filename!);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          ok == null
-              ? "Productos importados correctamente"
-              : "Error: ID-${ok?.id} - ${ok?.nombre}",
-        ),
-      ),
+  Future<void> _onTapCategorias() async {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ProductAdminPage()),
     );
   }
 
-  Future<void> _importClientesCsv() async {
-    Uint8List? bytes;
-    String? filename;
-
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['csv'],
-      withData: true,
-    );
-
-    if (result == null) return;
-
-    bytes = result.files.first.bytes!;
-    filename = result.files.first.name;
-
-    final ok = await clienteService.importarClientesCsv(bytes, filename);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          ok == null
-              ? "Clientes importados correctamente"
-              : "Error: ID-${ok?.id} - ${ok?.nombre}",
-        ),
-      ),
+  Future<void> _onTapClientes() async {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ProductAdminPage()),
     );
   }
 
-  Future<void> deleteDatos() async {
-    final ok = await clienteService.deleteDatos();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          ok ? "Datos borrados correctamente" : "Error al borrar datos",
-        ),
-      ),
+  Future<void> _onTapVendedores() async {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ProductAdminPage()),
     );
   }
 
-  Future<void> _confirmarBorrado() async {
-    final bool? confirmar = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false, // no se cierra tocando fuera
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text("Confirmar borrado"),
-          content: const Text(
-            "⚠️ Esta acción borrará categorías, productos y clientes.\n\n"
-            "¿Estás seguro de que quieres continuar?",
+  double get _previewSubtotal => 100.0;
+
+  double get _previewIva {
+    final iva = double.tryParse(_ivaCtrl.text.trim()) ?? 0;
+    return (_previewSubtotal * iva) / 100;
+  }
+
+  double get _previewDescuento {
+    final descuento = double.tryParse(_descuentoCtrl.text.trim()) ?? 0;
+    return (_previewSubtotal * descuento) / 100;
+  }
+
+  double get _previewTotal =>
+      _previewSubtotal + _previewIva - _previewDescuento;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF4F7FB),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 820),
+            child: Column(
+              children: [
+                _SectionCard(
+                  icon: Icons.person_outline,
+                  iconText: 'V',
+                  title: 'Datos del vendedor',
+                  subtitle:
+                      'Administra tu información personal y tus credenciales de acceso.',
+                  badgeText: 'Perfil activo',
+                  child: Column(
+                    children: [
+                      _ResponsiveTwoColumns(
+                        children: [
+                          _ConfigTextField(
+                            label: 'Nombre',
+                            controller: _nombreCtrl,
+                            hint: 'Nombre',
+                          ),
+                          _ConfigTextField(
+                            label: 'Apellido',
+                            controller: _apellidoCtrl,
+                            hint: 'Apellido',
+                          ),
+                          _ConfigTextField(
+                            label: 'Correo electrónico',
+                            controller: _emailCtrl,
+                            hint: 'correo@empresa.com',
+                            keyboardType: TextInputType.emailAddress,
+                            fullWidth: true,
+                          ),
+                          _ConfigTextField(
+                            label: 'Nueva contraseña',
+                            controller: _passwordCtrl,
+                            hint: '********',
+                            obscureText: true,
+                            fullWidth: true,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      _CardFooter(
+                        infoText:
+                            'Actualiza solo los datos que quieras cambiar.',
+                        primaryLabel: 'Guardar cambios',
+                        secondaryLabel: 'Cancelar',
+                        onSecondaryTap: () {
+                          _nombreCtrl.text = widget.vendedorActual.nombre;
+                          _apellidoCtrl.text = widget.vendedorActual.apellido;
+                          _emailCtrl.text = widget.vendedorActual.email;
+                          _passwordCtrl.clear();
+                          setState(() {});
+                        },
+                        onPrimaryTap: _savingProfile ? null : _saveProfile,
+                        loading: _savingProfile,
+                      ),
+                    ],
+                  ),
+                ),
+
+                if (Session.isAdmin) ...[
+                  const SizedBox(height: 24),
+                  _SectionCard(
+                    icon: Icons.receipt_long_outlined,
+                    iconText: 'P',
+                    title: 'Configuración de pedidos',
+                    subtitle:
+                        'Define el IVA y el descuento por defecto para pedidos nuevos.',
+                    badgeText: 'Admin',
+                    badgeColor: const Color(0xFFEEF2FF),
+                    badgeTextColor: const Color(0xFF4F46E5),
+                    child: _loadingPedidoConfig
+                        ? const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 32),
+                            child: Center(child: CircularProgressIndicator()),
+                          )
+                        : Column(
+                            children: [
+                              _ResponsiveTwoColumns(
+                                children: [
+                                  _ConfigTextField(
+                                    label: 'IVA (%)',
+                                    controller: _ivaCtrl,
+                                    hint: '21',
+                                    keyboardType:
+                                        const TextInputType.numberWithOptions(
+                                          decimal: true,
+                                        ),
+                                    onChanged: (_) => setState(() {}),
+                                  ),
+                                  _ConfigTextField(
+                                    label: 'Descuento (%)',
+                                    controller: _descuentoCtrl,
+                                    hint: '10',
+                                    keyboardType:
+                                        const TextInputType.numberWithOptions(
+                                          decimal: true,
+                                        ),
+                                    onChanged: (_) => setState(() {}),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 18),
+                              _PreviewBox(
+                                subtotal: _previewSubtotal,
+                                iva: double.tryParse(_ivaCtrl.text.trim()) ?? 0,
+                                descuento:
+                                    double.tryParse(
+                                      _descuentoCtrl.text.trim(),
+                                    ) ??
+                                    0,
+                                ivaAmount: _previewIva,
+                                descuentoAmount: _previewDescuento,
+                                total: _previewTotal,
+                              ),
+                              const SizedBox(height: 10),
+                              _CardFooter(
+                                infoText:
+                                    'Estos valores se aplicarán automáticamente a nuevos pedidos.',
+                                primaryLabel: 'Guardar cambios',
+                                secondaryLabel: 'Restablecer',
+                                onSecondaryTap: () {
+                                  _ivaCtrl.text = '21';
+                                  _descuentoCtrl.text = '0';
+                                  setState(() {});
+                                },
+                                onPrimaryTap: _savingPedidoConfig
+                                    ? null
+                                    : _savePedidoConfig,
+                                loading: _savingPedidoConfig,
+                              ),
+                            ],
+                          ),
+                  ),
+
+                  // Seccion de Gestion
+                  const SizedBox(height: 24),
+                  _GestionSection(
+                    onImportCategorias: _importCategoriasCsv,
+                    onImportClientes: _importClientesCsv,
+                    onImportProductos: _importProductosCsv,
+                    onImportVendedores: _importVendedoresCsv,
+                    onExportCategorias: _exportCategoriasCsv,
+                    onExportClientes: _exportClientesCsv,
+                    onExportProductos: _exportProductosCsv,
+                    onExportVendedores: _exportVendedoresCsv,
+                    onTapCategorias: _onTapCategorias,
+                    onTapClientes: _onTapClientes,
+                    onTapProductos: _onTapProductos,
+                    onTapVendedores: _onTapVendedores,
+                  ),
+                ],
+              ],
+            ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop(false);
-              },
-              child: const Text("Cancelar"),
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionCard extends StatelessWidget {
+  final IconData icon;
+  final String iconText;
+  final String title;
+  final String subtitle;
+  final String badgeText;
+  final Widget child;
+  final Color? badgeColor;
+  final Color? badgeTextColor;
+
+  const _SectionCard({
+    required this.icon,
+    required this.iconText,
+    required this.title,
+    required this.subtitle,
+    required this.badgeText,
+    required this.child,
+    this.badgeColor,
+    this.badgeTextColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE8EDF3)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 28,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  iconText,
+                  style: GoogleFonts.poppins(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.poppins(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF1F2937),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13.5,
+                        color: const Color(0xFF6B7280),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: badgeColor ?? const Color(0xFFE8F7EE),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  badgeText,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: badgeTextColor ?? const Color(0xFF15803D),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _ResponsiveTwoColumns extends StatelessWidget {
+  final List<_ConfigTextField> children;
+
+  const _ResponsiveTwoColumns({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isSingleColumn = constraints.maxWidth < 640;
+
+        if (isSingleColumn) {
+          return Column(
+            children: children
+                .map(
+                  (child) => Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: child,
+                  ),
+                )
+                .toList(),
+          );
+        }
+
+        final rows = <Widget>[];
+        int index = 0;
+
+        while (index < children.length) {
+          final current = children[index];
+
+          if (current.fullWidth) {
+            rows.add(
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: current,
+              ),
+            );
+            index++;
+            continue;
+          }
+
+          final next =
+              (index + 1 < children.length && !children[index + 1].fullWidth)
+              ? children[index + 1]
+              : null;
+
+          rows.add(
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Row(
+                children: [
+                  Expanded(child: current),
+                  const SizedBox(width: 18),
+                  Expanded(child: next ?? const SizedBox()),
+                ],
+              ),
             ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              onPressed: () {
-                Navigator.of(context).pop(true);
-              },
-              child: const Text("Borrar"),
-            ),
-          ],
-        );
+          );
+
+          index += next == null ? 1 : 2;
+        }
+
+        return Column(children: rows);
       },
     );
+  }
+}
 
-    if (confirmar == true) {
-      await deleteDatos();
+class _ConfigTextField extends StatelessWidget {
+  final String label;
+  final String hint;
+  final TextEditingController controller;
+  final bool obscureText;
+  final bool fullWidth;
+  final TextInputType? keyboardType;
+  final ValueChanged<String>? onChanged;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Datos borrados correctamente"),
-          backgroundColor: Colors.red,
+  const _ConfigTextField({
+    required this.label,
+    required this.hint,
+    required this.controller,
+    this.obscureText = false,
+    this.fullWidth = false,
+    this.keyboardType,
+    this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.poppins(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF374151),
+          ),
         ),
-      );
-    }
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          obscureText: obscureText,
+          keyboardType: keyboardType,
+          onChanged: onChanged,
+          style: GoogleFonts.poppins(
+            fontSize: 15,
+            color: const Color(0xFF111827),
+          ),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: GoogleFonts.poppins(
+              color: const Color(0xFF9CA3AF),
+              fontSize: 14,
+            ),
+            filled: true,
+            fillColor: const Color(0xFFFAFAFA),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 14,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFF2563EB)),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ActionButton extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ActionButton({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  State<_ActionButton> createState() => _ActionButtonState();
+}
+
+class _ActionButtonState extends State<_ActionButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+          decoration: BoxDecoration(
+            color: _isHovered
+                ? widget.color.withOpacity(0.1)
+                : const Color(0xFFF3F4F6),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: _isHovered
+                  ? widget.color.withOpacity(0.3)
+                  : const Color(0xFFE5E7EB),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                widget.icon,
+                size: 18,
+                color: _isHovered ? widget.color : const Color(0xFF6B7280),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                widget.label,
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: _isHovered ? widget.color : const Color(0xFF6B7280),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PreviewBox extends StatelessWidget {
+  final double subtotal;
+  final double iva;
+  final double descuento;
+  final double ivaAmount;
+  final double descuentoAmount;
+  final double total;
+
+  const _PreviewBox({
+    required this.subtotal,
+    required this.iva,
+    required this.descuento,
+    required this.ivaAmount,
+    required this.descuentoAmount,
+    required this.total,
+  });
+
+  String _format(double value) => value.toStringAsFixed(2);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Vista previa',
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF374151),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _PreviewRow(label: 'Subtotal', value: '€${_format(subtotal)}'),
+          const SizedBox(height: 8),
+          _PreviewRow(
+            label: 'IVA (${iva.toStringAsFixed(0)}%)',
+            value: '+ €${_format(ivaAmount)}',
+          ),
+          const SizedBox(height: 8),
+          _PreviewRow(
+            label: 'Descuento (${descuento.toStringAsFixed(0)}%)',
+            value: '- €${_format(descuentoAmount)}',
+          ),
+          const SizedBox(height: 10),
+          const Divider(height: 1),
+          const SizedBox(height: 10),
+          _PreviewRow(
+            label: 'Total',
+            value: '€${_format(total)}',
+            isTotal: true,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PreviewRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool isTotal;
+
+  const _PreviewRow({
+    required this.label,
+    required this.value,
+    this.isTotal = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textStyle = GoogleFonts.poppins(
+      fontSize: isTotal ? 15 : 14,
+      fontWeight: isTotal ? FontWeight.w700 : FontWeight.w500,
+      color: isTotal ? const Color(0xFF111827) : const Color(0xFF374151),
+    );
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: textStyle),
+        Text(value, style: textStyle),
+      ],
+    );
+  }
+}
+
+class _CardFooter extends StatelessWidget {
+  final String infoText;
+  final String primaryLabel;
+  final String secondaryLabel;
+  final VoidCallback? onPrimaryTap;
+  final VoidCallback? onSecondaryTap;
+  final bool loading;
+
+  const _CardFooter({
+    required this.infoText,
+    required this.primaryLabel,
+    required this.secondaryLabel,
+    required this.onPrimaryTap,
+    required this.onSecondaryTap,
+    required this.loading,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final stacked = constraints.maxWidth < 640;
+
+          if (stacked) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Divider(height: 1),
+                const SizedBox(height: 16),
+                Text(
+                  infoText,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12.5,
+                    color: const Color(0xFF6B7280),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                OutlinedButton(
+                  onPressed: onSecondaryTap,
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(46),
+                    side: const BorderSide(color: Color(0xFFE5E7EB)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: Text(
+                    secondaryLabel,
+                    style: GoogleFonts.poppins(
+                      color: const Color(0xFF374151),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ElevatedButton(
+                  onPressed: onPrimaryTap,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2563EB),
+                    minimumSize: const Size.fromHeight(46),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: loading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          primaryLabel,
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                ),
+              ],
+            );
+          }
+
+          return Column(
+            children: [
+              const Divider(height: 1),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      infoText,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12.5,
+                        color: const Color(0xFF6B7280),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  OutlinedButton(
+                    onPressed: onSecondaryTap,
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(130, 46),
+                      side: const BorderSide(color: Color(0xFFE5E7EB)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: Text(
+                      secondaryLabel,
+                      style: GoogleFonts.poppins(
+                        color: const Color(0xFF374151),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: onPrimaryTap,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      minimumSize: const Size(170, 46),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: loading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            primaryLabel,
+                            style: GoogleFonts.poppins(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ============== GESTION SECTION ==============
+
+class _GestionSection extends StatelessWidget {
+  final VoidCallback onImportCategorias;
+  final VoidCallback onImportProductos;
+  final VoidCallback onImportClientes;
+  final VoidCallback onImportVendedores;
+
+  final VoidCallback onExportCategorias;
+  final VoidCallback onExportProductos;
+  final VoidCallback onExportClientes;
+  final VoidCallback onExportVendedores;
+
+  final VoidCallback onTapCategorias;
+  final VoidCallback onTapProductos;
+  final VoidCallback onTapClientes;
+  final VoidCallback onTapVendedores;
+
+  const _GestionSection({
+    required this.onImportCategorias,
+    required this.onImportProductos,
+    required this.onImportClientes,
+    required this.onImportVendedores,
+    required this.onExportCategorias,
+    required this.onExportProductos,
+    required this.onExportClientes,
+    required this.onExportVendedores,
+    required this.onTapCategorias,
+    required this.onTapProductos,
+    required this.onTapClientes,
+    required this.onTapVendedores,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE8EDF3)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 28,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  'G',
+                  style: GoogleFonts.poppins(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Gestion',
+                      style: GoogleFonts.poppins(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF1F2937),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Administra categorias, vendedores y productos del sistema.',
+                      style: GoogleFonts.poppins(
+                        fontSize: 13.5,
+                        color: const Color(0xFF6B7280),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEEF2FF),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  'Admin',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF4F46E5),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Cards Grid
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth >= 500;
+
+              if (isWide) {
+                return Column(
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _GestionCard(
+                            icon: Icons.category_rounded,
+                            iconColor: const Color(0xFF10B981),
+                            title: 'Categorias',
+                            description:
+                                'Organiza y gestiona las categorias de productos',
+                            count: '…',
+                            onTap: () {
+                              onTapCategorias();
+                            },
+                            onImport: () {
+                              onImportCategorias();
+                            },
+                            onExport: () {
+                              onExportCategorias();
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _GestionCard(
+                            icon: Icons.people_rounded,
+                            iconColor: const Color(0xFF3B82F6),
+                            title: 'Vendedores',
+                            description: 'Administra el equipo de vendedores',
+                            count: '…',
+                            onTap: () {
+                              onTapVendedores();
+                            },
+                            onImport: () {
+                              onImportVendedores();
+                            },
+                            onExport: () {
+                              onExportVendedores();
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _GestionCard(
+                            icon: Icons.inventory_2_rounded,
+                            iconColor: const Color(0xFFF59E0B),
+                            title: 'Productos',
+                            description:
+                                'Gestiona el inventario completo de productos y stock',
+                            count: '…',
+                            onTap: () {
+                              onTapProductos();
+                            },
+                            onImport: () {
+                              onImportProductos();
+                            },
+                            onExport: () {
+                              onExportProductos();
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _GestionCard(
+                            icon: Icons.person_search_rounded,
+                            iconColor: const Color(0xFFEC4899),
+                            title: 'Clientes',
+                            description: 'Administra la cartera de clientes',
+                            count: '…',
+                            onTap: () {
+                              onTapClientes();
+                            },
+                            onImport: () {
+                              onImportClientes();
+                            },
+                            onExport: () {
+                              onExportClientes();
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              } else {
+                return Column(
+                  children: [
+                    _GestionCard(
+                      icon: Icons.category_rounded,
+                      iconColor: const Color(0xFF10B981),
+                      title: 'Categorias',
+                      description:
+                          'Organiza y gestiona las categorias de productos',
+                      count: '…',
+                      onTap: () {
+                        onTapCategorias();
+                      },
+                      onImport: () {
+                        onImportCategorias();
+                      },
+                      onExport: () {
+                        onExportCategorias();
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _GestionCard(
+                      icon: Icons.people_rounded,
+                      iconColor: const Color(0xFF3B82F6),
+                      title: 'Vendedores',
+                      description: 'Administra el equipo de vendedores',
+                      count: '…',
+                      onTap: () {
+                        onTapVendedores();
+                      },
+                      onImport: () {
+                        onImportVendedores();
+                      },
+                      onExport: () {
+                        onExportVendedores();
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _GestionCard(
+                      icon: Icons.inventory_2_rounded,
+                      iconColor: const Color(0xFFF59E0B),
+                      title: 'Productos',
+                      description:
+                          'Gestiona el inventario completo de productos y stock',
+                      count: '…',
+                      onTap: () {
+                        onTapProductos();
+                      },
+                      onImport: () {
+                        onImportProductos();
+                      },
+                      onExport: () {
+                        onExportProductos();
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _GestionCard(
+                      icon: Icons.person_search_rounded,
+                      iconColor: const Color(0xFFEC4899),
+                      title: 'Clientes',
+                      description: 'Administra la cartera de clientes',
+                      count: '…',
+                      onTap: () {
+                        onTapClientes();
+                      },
+                      onImport: () {
+                        onImportClientes();
+                      },
+                      onExport: () {
+                        onExportClientes();
+                      },
+                    ),
+                  ],
+                );
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GestionCard extends StatefulWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String description;
+  final String count;
+  final VoidCallback onTap;
+  final VoidCallback onImport;
+  final VoidCallback onExport;
+
+  const _GestionCard({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.description,
+    required this.count,
+    required this.onTap,
+    required this.onImport,
+    required this.onExport,
+  });
+
+  @override
+  State<_GestionCard> createState() => _GestionCardState();
+}
+
+class _GestionCardState extends State<_GestionCard> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: _isHovered
+                ? widget.iconColor.withOpacity(0.04)
+                : const Color(0xFFF9FAFB),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: _isHovered
+                  ? widget.iconColor.withOpacity(0.3)
+                  : const Color(0xFFE5E7EB),
+              width: 1.5,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  // Icon container
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: widget.iconColor.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    alignment: Alignment.center,
+                    child: Icon(widget.icon, color: widget.iconColor, size: 24),
+                  ),
+                  const SizedBox(width: 14),
+                  // Content
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              widget.title,
+                              style: GoogleFonts.poppins(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF1F2937),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: widget.iconColor.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                widget.count,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: widget.iconColor,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          widget.description,
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            color: const Color(0xFF6B7280),
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Arrow
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: _isHovered
+                          ? widget.iconColor.withOpacity(0.12)
+                          : const Color(0xFFE5E7EB).withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      Icons.arrow_forward_rounded,
+                      color: _isHovered
+                          ? widget.iconColor
+                          : const Color(0xFF9CA3AF),
+                      size: 18,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              // Import/Export buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: _ActionButton(
+                      icon: Icons.file_download_outlined,
+                      label: 'Importar',
+                      color: widget.iconColor,
+                      onTap: widget.onImport,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _ActionButton(
+                      icon: Icons.file_upload_outlined,
+                      label: 'Exportar',
+                      color: widget.iconColor,
+                      onTap: widget.onExport,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
