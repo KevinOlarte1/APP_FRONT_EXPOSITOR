@@ -29,17 +29,16 @@ class _HomeAdminPageState extends State<HomeAdminPage>
   String? _errorMessage;
 
   int _selectedIndex = 0;
-  late PageController _pageController;
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
 
   // Para el sidebar en desktop
   bool _sidebarExpanded = true;
+  bool _showSidebarText = true;
 
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(initialPage: _selectedIndex);
     _fadeController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
@@ -53,7 +52,6 @@ class _HomeAdminPageState extends State<HomeAdminPage>
 
   @override
   void dispose() {
-    _pageController.dispose();
     _fadeController.dispose();
     super.dispose();
   }
@@ -96,15 +94,44 @@ class _HomeAdminPageState extends State<HomeAdminPage>
     }
   }
 
+  Future<void> _toggleSidebar() async {
+    if (_sidebarExpanded) {
+      // Primero ocultamos texto, luego cerramos
+      setState(() {
+        _showSidebarText = false;
+      });
+
+      await Future.delayed(const Duration(milliseconds: 80));
+
+      if (!mounted) return;
+      setState(() {
+        _sidebarExpanded = false;
+      });
+    } else {
+      // Primero abrimos ancho, luego mostramos texto
+      setState(() {
+        _sidebarExpanded = true;
+      });
+
+      await Future.delayed(const Duration(milliseconds: 170));
+
+      if (!mounted) return;
+      setState(() {
+        _showSidebarText = true;
+      });
+    }
+  }
+
   void _onItemTapped(int index) {
     if (index == _selectedIndex) return;
 
     setState(() => _selectedIndex = index);
+    /*
     _pageController.animateToPage(
       index,
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOutCubic,
-    );
+    ); */
   }
 
   /// Función de logout - ¡Personaliza esta función!
@@ -340,9 +367,8 @@ class _HomeAdminPageState extends State<HomeAdminPage>
           Expanded(
             child: FadeTransition(
               opacity: _fadeAnimation,
-              child: PageView(
-                controller: _pageController,
-                physics: const NeverScrollableScrollPhysics(),
+              child: IndexedStack(
+                index: _selectedIndex,
                 children: _buildPages(vendedor),
               ),
             ),
@@ -398,7 +424,7 @@ class _HomeAdminPageState extends State<HomeAdminPage>
                     ),
                   ),
                 ),
-                if (_sidebarExpanded) ...[
+                if (_showSidebarText) ...[
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -438,9 +464,7 @@ class _HomeAdminPageState extends State<HomeAdminPage>
               horizontal: _sidebarExpanded ? 16 : 14,
             ),
             child: InkWell(
-              onTap: () {
-                setState(() => _sidebarExpanded = !_sidebarExpanded);
-              },
+              onTap: _toggleSidebar,
               borderRadius: BorderRadius.circular(10),
               child: Container(
                 padding: EdgeInsets.symmetric(
@@ -465,13 +489,17 @@ class _HomeAdminPageState extends State<HomeAdminPage>
                         size: 22,
                       ),
                     ),
-                    if (_sidebarExpanded) ...[
+                    if (_showSidebarText) ...[
                       const SizedBox(width: 10),
-                      Text(
-                        'Contraer menú',
-                        style: GoogleFonts.poppins(
-                          color: Colors.white60,
-                          fontSize: 13,
+                      Expanded(
+                        child: Text(
+                          'Contraer menú',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(
+                            color: Colors.white60,
+                            fontSize: 13,
+                          ),
                         ),
                       ),
                     ],
@@ -538,14 +566,18 @@ class _HomeAdminPageState extends State<HomeAdminPage>
                   color: Colors.red.shade300,
                   size: 22,
                 ),
-                if (_sidebarExpanded) ...[
+                if (_showSidebarText) ...[
                   const SizedBox(width: 14),
-                  Text(
-                    'Cerrar sesión',
-                    style: GoogleFonts.poppins(
-                      color: Colors.red.shade300,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 14,
+                  Expanded(
+                    child: Text(
+                      'Cerrar sesión',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        color: Colors.red.shade300,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
                 ],
@@ -603,16 +635,20 @@ class _HomeAdminPageState extends State<HomeAdminPage>
                       size: 22,
                     ),
                   ),
-                  if (_sidebarExpanded) ...[
+                  if (_showSidebarText) ...[
                     const SizedBox(width: 14),
-                    Text(
-                      item.label,
-                      style: GoogleFonts.poppins(
-                        color: isSelected ? Colors.white : Colors.white60,
-                        fontWeight: isSelected
-                            ? FontWeight.w600
-                            : FontWeight.w500,
-                        fontSize: 14,
+                    Expanded(
+                      child: Text(
+                        item.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          color: isSelected ? Colors.white : Colors.white60,
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.w500,
+                          fontSize: 14,
+                        ),
                       ),
                     ),
                   ],
@@ -635,9 +671,8 @@ class _HomeAdminPageState extends State<HomeAdminPage>
       ),
       body: FadeTransition(
         opacity: _fadeAnimation,
-        child: PageView(
-          controller: _pageController,
-          physics: const NeverScrollableScrollPhysics(),
+        child: IndexedStack(
+          index: _selectedIndex,
           children: _buildPages(vendedor),
         ),
       ),
