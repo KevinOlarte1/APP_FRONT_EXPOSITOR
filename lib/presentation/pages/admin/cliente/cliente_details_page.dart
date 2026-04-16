@@ -3,14 +3,12 @@ import 'package:expositor_app/data/models/pedido.dart';
 import 'package:expositor_app/data/services/cliente_service.dart';
 import 'package:expositor_app/data/services/pedido_service.dart';
 import 'package:expositor_app/presentation/pages/admin/pedido_detail_page.dart';
-import 'package:expositor_app/presentation/widget/cards/pedido_card.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:expositor_app/data/models/cliente.dart';
 import 'package:expositor_app/data/models/vendedor.dart';
 import 'package:expositor_app/data/services/vendedor_service.dart';
 import 'package:expositor_app/core/services/secure_storage_service.dart';
-import 'dart:math' as math;
+import 'package:google_fonts/google_fonts.dart';
 
 class ClienteDetailsPage extends StatefulWidget {
   final Cliente cliente;
@@ -18,10 +16,11 @@ class ClienteDetailsPage extends StatefulWidget {
   const ClienteDetailsPage({super.key, required this.cliente});
 
   @override
-  State<ClienteDetailsPage> createState() => _ClienteDetailsAdminPageState();
+  State<ClienteDetailsPage> createState() => _ClienteDetailsPageState();
 }
 
-class _ClienteDetailsAdminPageState extends State<ClienteDetailsPage> {
+class _ClienteDetailsPageState extends State<ClienteDetailsPage>
+    with SingleTickerProviderStateMixin {
   final VendedorService vendedorService = VendedorService();
   final ClienteService clienteService = ClienteService();
   final PedidoService pedidoService = PedidoService();
@@ -29,16 +28,33 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsPage> {
 
   late Future<Vendedor?> futureVendedor;
   late Cliente _cliente;
+  late AnimationController _fadeController;
+  late Animation<double> _fadeAnimation;
 
   @override
   void initState() {
     super.initState();
     _cliente = widget.cliente;
     futureVendedor = vendedorService.getById(widget.cliente.idVendedor);
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _fadeController,
+      curve: Curves.easeOut,
+    );
+    _fadeController.forward();
+  }
+
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    super.dispose();
   }
 
   // ============================================================
-  // CREAR PEDIDO USANDO VALORES POR DEFECTO (IVA + DESCUENTO)
+  // CREAR PEDIDO
   // ============================================================
   Future<void> _crearPedido() async {
     final nuevo = await pedidoService.addPedido(idCliente: widget.cliente.id);
@@ -71,594 +87,729 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsPage> {
     );
   }
 
-  // ============================================================
-  // CARD DE CREAR PEDIDO
-  // ============================================================
-  Widget _buildAddPedidoCard() {
-    return InkWell(
-      onTap: _crearPedido,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        height: 140,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.08),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: const Center(
-          child: Icon(Icons.add, size: 48, color: Color(0xFF3C75EF)),
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // BUILD UI COMPLETA
-  // ============================================================
   @override
   Widget build(BuildContext context) {
-    final cliente = _cliente;
-
     return Scaffold(
-      backgroundColor: Colors.grey.shade100,
+      backgroundColor: const Color(0xFFF4F7FB),
       appBar: AppBar(
         backgroundColor: const Color(0xFF3C75EF),
+        elevation: 0,
         title: Text(
-          "Cliente: ${cliente.nombre}",
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          "Cliente: ${_cliente.nombre}",
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 18),
         ),
         leading: IconButton(
-          onPressed: () {
-            Navigator.pop(context, true); // ✅ avisa que hay cambios
-          },
-          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context, true),
+          icon: const Icon(Icons.arrow_back_rounded),
         ),
+        actions: [
+          IconButton(
+            tooltip: "Editar cliente",
+            icon: const Icon(Icons.edit_rounded),
+            onPressed: () async {
+              final updated = await _showUpdateClienteDialog(
+                context,
+                _cliente,
+                isAdmin: Session.isAdmin,
+              );
+              if (updated != null) {
+                setState(() {
+                  _cliente = updated;
+                  futureVendedor = vendedorService.getById(updated.idVendedor);
+                });
+              }
+            },
+          ),
+        ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // -----------------------------------------------------------
-            // FOTO + INFO BÁSICA
-            // -----------------------------------------------------------
-            Center(
+      body: FadeTransition(
+        opacity: _fadeAnimation,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1200),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  CircleAvatar(
-                    radius: 45,
-                    backgroundColor: Colors.blue.shade200,
-                    child: const Icon(
-                      Icons.person,
-                      size: 50,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    cliente.nombre,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    cliente.cif,
-                    style: TextStyle(fontSize: 16, color: Colors.grey.shade700),
-                  ),
+                  // Info del cliente compacta
+                  _buildClienteInfoCard(),
+                  const SizedBox(height: 20),
+
+                  // Pedidos con detalles mejorados
+                  _buildPedidosSection(),
                 ],
               ),
             ),
-
-            const SizedBox(height: 25),
-
-            // -----------------------------------------------------------
-            // CARD 1 — INFO CLIENTE
-            // -----------------------------------------------------------
-            Card(
-              elevation: 3,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          "Información del Cliente",
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: "Actualizar cliente",
-                          icon: const Icon(
-                            Icons.edit,
-                            color: Color(0xFF3C75EF),
-                          ),
-                          onPressed: () async {
-                            final updated = await _showUpdateClienteDialog(
-                              context,
-                              _cliente,
-                              isAdmin: Session.isAdmin,
-                            );
-                            if (updated != null) {
-                              setState(() {
-                                _cliente =
-                                    updated; // ✅ ahora sí cambia lo que se pinta
-                                futureVendedor = vendedorService.getById(
-                                  updated.idVendedor,
-                                );
-                              });
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 15),
-
-                    _infoRow("ID Cliente", cliente.id.toString()),
-                    _infoRow("Nombre", cliente.nombre),
-                    _infoRow("CIF", cliente.cif),
-                    _infoRow(
-                      "Teléfono",
-                      cliente.telefono.isNotEmpty ? cliente.telefono : "—",
-                    ),
-                    _infoRow(
-                      "Correo",
-                      cliente.email.isNotEmpty ? cliente.email : "—",
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    FutureBuilder<Vendedor?>(
-                      future: futureVendedor,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return _infoRow("Vendedor asociado", "Cargando...");
-                        }
-                        if (!snapshot.hasData) {
-                          return _infoRow("Vendedor asociado", "No disponible");
-                        }
-
-                        final v = snapshot.data!;
-                        return _infoRow(
-                          "Vendedor asociado",
-                          "${v.nombre} ${v.apellido} — ${v.email}",
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // -----------------------------------------------------------
-            // CARD 2 — GRAFICA DE INGRESO ANUAL
-            // -----------------------------------------------------------
-            /*
-            _buildGraficaIngresos(),
-
-            const SizedBox(height: 20), */
-
-            // -----------------------------------------------------------
-            // CARD 3 — PEDIDOS + BOTÓN CREAR PEDIDO
-            // -----------------------------------------------------------
-            _buildPedidosConCrear(),
-          ],
+          ),
+        ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _crearPedido,
+        backgroundColor: const Color(0xFF3C75EF),
+        icon: const Icon(Icons.add_rounded),
+        label: Text(
+          'Nuevo Pedido',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
         ),
       ),
     );
   }
 
   // ============================================================
-  // GRAFICA INGRESOS (SEPARADA PARA LIMPIEZA)
+  // CARD INFO CLIENTE (compacta sin cabecera grande)
   // ============================================================
-  Widget _buildGraficaIngresos() {
-    return FutureBuilder<Map<String, double>>(
-      future: clienteService.getIngresoAnual(_cliente.id),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return Card(
-            elevation: 3,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Padding(
-              padding: EdgeInsets.all(20),
-              child: Text(
-                "No hay datos de ingresos anuales.",
-                style: TextStyle(color: Colors.grey),
-              ),
-            ),
-          );
-        }
-
-        final data = snapshot.data!;
-        final years = data.keys.toList();
-        final values = data.values.toList();
-        final maxValue = values.reduce((a, b) => a > b ? a : b);
-
-        // Evita maxY = 0 (si todo es 0, pinta igualmente la gráfica sin romper)
-        final safeMax = maxValue <= 0 ? 1.0 : maxValue;
-
-        // Intervalo SIEMPRE > 0
-        final safeInterval = math.max(1.0, safeMax / 5);
-        final allZero = values.every((v) => v == 0);
-        /*
-        if (allZero) {
-          return Card(
-            elevation: 3,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Padding(
-              padding: EdgeInsets.all(20),
-              child: Text(
-                "Este cliente aún no tiene ingresos.",
-                style: TextStyle(color: Colors.grey),
-              ),
-            ),
-          );
-        } */
-        return Card(
-          elevation: 3,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+  Widget _buildClienteInfoCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE8EDF3)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  "Estadísticas — Ingreso Anual",
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
+        ],
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isSmall = constraints.maxWidth < 600;
 
-                const SizedBox(height: 20),
-
-                SizedBox(
-                  height: 260,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: SizedBox(
-                      width:
-                          (data.length * 120).toDouble() <
-                              MediaQuery.of(context).size.width
-                          ? MediaQuery.of(context).size.width
-                          : (data.length * 120).toDouble(),
-                      child: Padding(
-                        padding: const EdgeInsets.only(
-                          top: 12,
-                        ), // ✅ aire tooltip
-                        child: BarChart(
-                          BarChartData(
-                            alignment: BarChartAlignment.start,
-                            minY: 0,
-                            maxY: safeMax * 1.25,
-
-                            barTouchData: BarTouchData(
-                              enabled: true,
-                              touchTooltipData: BarTouchTooltipData(
-                                fitInsideHorizontally: true, // ✅
-                                fitInsideVertically: true, // ✅
-                                tooltipRoundedRadius: 12,
-                                tooltipPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 8,
-                                ),
-                                tooltipMargin: 8,
-                                getTooltipItem:
-                                    (group, groupIndex, rod, rodIndex) {
-                                      final year = years[group.x.toInt()];
-                                      final value = values[group.x.toInt()];
-
-                                      return BarTooltipItem(
-                                        '$year\n',
-                                        const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.black,
-                                          fontSize: 13,
-                                        ),
-                                        children: [
-                                          TextSpan(
-                                            text:
-                                                '${value.toStringAsFixed(2)} €',
-                                            style: const TextStyle(
-                                              color: Colors.black87,
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ],
-                                      );
-                                    },
-                              ),
-                            ),
-
-                            gridData: FlGridData(
-                              show: true,
-                              drawVerticalLine: false,
-                              getDrawingHorizontalLine: (_) => FlLine(
-                                color: Colors.grey.shade300,
-                                strokeWidth: 1,
-                              ),
-                            ),
-                            borderData: FlBorderData(show: false),
-
-                            titlesData: FlTitlesData(
-                              topTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                  showTitles: false,
-                                  reservedSize: 12, // ✅ espacio superior
-                                ),
-                              ),
-                              rightTitles: const AxisTitles(
-                                sideTitles: SideTitles(showTitles: false),
-                              ),
-                              leftTitles: const AxisTitles(
-                                sideTitles: SideTitles(showTitles: false),
-                              ),
-                              bottomTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                  showTitles: true,
-                                  reservedSize: 40,
-                                  getTitlesWidget: (value, meta) {
-                                    final index = value.toInt();
-                                    if (index < 0 || index >= years.length) {
-                                      return const SizedBox.shrink();
-                                    }
-                                    return SideTitleWidget(
-                                      axisSide: meta.axisSide,
-                                      child: Text(
-                                        years[index],
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ),
-
-                            barGroups: List.generate(
-                              data.length,
-                              (i) => BarChartGroupData(
-                                x: i,
-                                barRods: [
-                                  BarChartRodData(
-                                    toY: values[i],
-                                    width: 35,
-                                    borderRadius: BorderRadius.circular(6),
-                                    color: const Color(0xFF3C75EF),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildInfoHeader(),
+              const Divider(height: 24),
+              _buildInfoGrid(isSmall: isSmall),
+            ],
+          );
+        },
+      ),
     );
   }
 
-  // ============================================================
-  // PEDIDOS + BOTÓN NUEVO PEDIDO
-  // ============================================================
-  Widget _buildPedidosConCrear() {
-    final cliente = _cliente;
-
-    return FutureBuilder<List<Pedido>>(
-      future: pedidoService.getPedidosByClienteAdmin(cliente.id),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        final pedidos = snapshot.data ?? [];
-
-        return Card(
-          elevation: 3,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+  Widget _buildInfoHeader() {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF3C75EF), Color(0xFF1D4ED8)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(14),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  "Pedidos del Cliente",
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-
-                const SizedBox(height: 8),
-
-                // ===== CONTADOR DE PEDIDOS =====
-                if (pedidos.isNotEmpty)
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.withOpacity(
-                            0.15,
-                          ), // MISMO COLOR QUE PEDIDO ABIERTO
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          "ABIERTO: ${pedidos.where((p) => p.cerrado == false).length}",
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color:
-                                Colors.orange, // MISMO COLOR QUE PEDIDO ABIERTO
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(width: 12),
-
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withOpacity(
-                            0.15,
-                          ), // MISMO COLOR QUE PEDIDO CERRADO
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          "CERRADO: ${pedidos.where((p) => p.cerrado == true).length}",
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color:
-                                Colors.green, // MISMO COLOR QUE PEDIDO CERRADO
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                const SizedBox(height: 16),
-
-                // BOTÓN CREAR PEDIDO
-                _buildAddPedidoCard(),
-
-                const SizedBox(height: 20),
-
-                if (pedidos.isEmpty)
-                  const Text(
-                    "Este cliente no tiene pedidos.",
-                    style: TextStyle(color: Colors.grey),
-                  )
-                else
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      double width = constraints.maxWidth;
-
-                      int crossAxisCount = 1;
-                      if (width > 600) crossAxisCount = 2;
-                      if (width > 1000) crossAxisCount = 3;
-
-                      return GridView.builder(
-                        itemCount: pedidos.length,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: crossAxisCount,
-                          crossAxisSpacing: 16,
-                          mainAxisSpacing: 16,
-                          mainAxisExtent: _pedidoCardHeight(
-                            pedidos,
-                            crossAxisCount,
-                          ),
-                        ),
-                        itemBuilder: (context, index) {
-                          final pedido = pedidos[index];
-                          return PedidoCard(
-                            pedido: pedido,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      PedidoDetailPage(pedido: pedido),
-                                ),
-                              ).then((_) {
-                                setState(
-                                  () {},
-                                ); // 🔥 vuelve a ejecutar los FutureBuilder y recarga todo
-                              });
-                            },
-                          );
-                        },
-                      );
-                    },
-                  ),
-              ],
+          child: const Icon(
+            Icons.business_rounded,
+            color: Colors.white,
+            size: 24,
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Text(
+            _cliente.nombre,
+            style: GoogleFonts.poppins(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF1F2937),
             ),
           ),
-        );
-      },
+        ),
+      ],
     );
   }
 
-  double _pedidoCardHeight(List<Pedido> pedidos, int crossAxisCount) {
-    final hasAnyComment = pedidos.any((p) => p.comentario.trim().isNotEmpty);
-
-    // cuanto más columnas, más estrecha la card -> más filas de chips -> más alto
-    if (crossAxisCount >= 3) return 370;
-    if (crossAxisCount == 2) return 390;
-
-    return hasAnyComment ? 360 : 320; // 1 columna
+  Widget _buildInfoGrid({required bool isSmall}) {
+    return Wrap(
+      spacing: 16,
+      runSpacing: 12,
+      children: [
+        _buildInfoChip(Icons.badge_rounded, 'CIF', _cliente.cif, isSmall),
+        _buildInfoChip(
+          Icons.phone_rounded,
+          'Teléfono',
+          _cliente.telefono.isNotEmpty ? _cliente.telefono : '—',
+          isSmall,
+        ),
+        _buildInfoChip(
+          Icons.email_rounded,
+          'Correo',
+          _cliente.email.isNotEmpty ? _cliente.email : '—',
+          isSmall,
+        ),
+        FutureBuilder<Vendedor?>(
+          future: futureVendedor,
+          builder: (context, snapshot) {
+            String vendedorText = 'Cargando...';
+            if (snapshot.connectionState == ConnectionState.done) {
+              vendedorText = snapshot.data != null
+                  ? '${snapshot.data!.nombre} ${snapshot.data!.apellido}'
+                  : 'No asignado';
+            }
+            return _buildInfoChip(
+              Icons.person_rounded,
+              'Vendedor',
+              vendedorText,
+              isSmall,
+            );
+          },
+        ),
+      ],
+    );
   }
 
-  // ============================================================
-  // FILA INFO
-  // ============================================================
-  Widget _infoRow(String title, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+  Widget _buildInfoChip(
+    IconData icon,
+    String label,
+    String value,
+    bool isSmall,
+  ) {
+    return Container(
+      width: isSmall ? double.infinity : null,
+      constraints: isSmall ? null : const BoxConstraints(minWidth: 180),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: isSmall ? MainAxisSize.max : MainAxisSize.min,
         children: [
-          SizedBox(
-            width: 150,
-            child: Text(
-              "$title:",
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
+          Icon(icon, size: 18, color: const Color(0xFF6B7280)),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    color: const Color(0xFF9CA3AF),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  value,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: const Color(0xFF1F2937),
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
-          ),
-          Expanded(
-            child: Text(value, style: const TextStyle(color: Colors.black87)),
           ),
         ],
       ),
     );
   }
 
+  // ============================================================
+  // SECCIÓN DE PEDIDOS MEJORADA
+  // ============================================================
+  Widget _buildPedidosSection() {
+    return FutureBuilder<List<Pedido>>(
+      future: pedidoService.getPedidosByClienteAdmin(_cliente.id),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(40),
+              child: CircularProgressIndicator(color: Color(0xFF3C75EF)),
+            ),
+          );
+        }
+
+        final pedidos = snapshot.data ?? [];
+        final pedidosAbiertos = pedidos.where((p) => !p.cerrado).toList();
+        final pedidosCerrados = pedidos.where((p) => p.cerrado).toList();
+
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFE8EDF3)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header con estadísticas
+              _buildPedidosHeader(
+                pedidosAbiertos.length,
+                pedidosCerrados.length,
+              ),
+              const SizedBox(height: 20),
+
+              if (pedidos.isEmpty)
+                _buildEmptyPedidos()
+              else
+                _buildPedidosList(pedidos),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPedidosHeader(int abiertos, int cerrados) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isSmall = constraints.maxWidth < 500;
+
+        if (isSmall) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF10B981), Color(0xFF059669)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.receipt_long_rounded,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      'Pedidos del Cliente',
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF1F2937),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildStatBadge('Abiertos', abiertos, Colors.orange),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildStatBadge('Cerrados', cerrados, Colors.green),
+                  ),
+                ],
+              ),
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF10B981), Color(0xFF059669)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(
+                Icons.receipt_long_rounded,
+                color: Colors.white,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                'Pedidos del Cliente',
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF1F2937),
+                ),
+              ),
+            ),
+            _buildStatBadge('Abiertos', abiertos, Colors.orange),
+            const SizedBox(width: 12),
+            _buildStatBadge('Cerrados', cerrados, Colors.green),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildStatBadge(String label, int count, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$count',
+            style: GoogleFonts.poppins(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyPedidos() {
+    return Container(
+      padding: const EdgeInsets.all(40),
+      child: Column(
+        children: [
+          Icon(Icons.inbox_rounded, size: 64, color: Colors.grey.shade300),
+          const SizedBox(height: 16),
+          Text(
+            'Sin pedidos',
+            style: GoogleFonts.poppins(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF6B7280),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Este cliente aún no tiene pedidos registrados',
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              color: const Color(0xFF9CA3AF),
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPedidosList(List<Pedido> pedidos) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        int crossAxisCount = 1;
+        if (constraints.maxWidth > 900)
+          crossAxisCount = 3;
+        else if (constraints.maxWidth > 550)
+          crossAxisCount = 2;
+
+        return GridView.builder(
+          itemCount: pedidos.length,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            childAspectRatio: crossAxisCount == 1 ? 1.1 : 0.85,
+          ),
+          itemBuilder: (context, index) {
+            final pedido = pedidos[index];
+            return _buildPedidoCard(pedido);
+          },
+        );
+      },
+    );
+  }
+
+  // ============================================================
+  // CARD DE PEDIDO MEJORADA CON TODOS LOS DETALLES
+  // ============================================================
+  Widget _buildPedidoCard(Pedido pedido) {
+    final isCerrado = pedido.cerrado;
+    final statusColor = isCerrado ? Colors.green : Colors.orange;
+
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PedidoDetailPage(pedido: pedido),
+          ),
+        ).then((_) => setState(() {}));
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: statusColor.withOpacity(0.3), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: statusColor.withOpacity(0.08),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header del pedido
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    isCerrado
+                        ? Icons.check_circle_rounded
+                        : Icons.pending_rounded,
+                    color: statusColor,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Pedido #${pedido.id}',
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF1F2937),
+                        ),
+                      ),
+                      Text(
+                        pedido.fecha,
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: const Color(0xFF6B7280),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    isCerrado ? 'CERRADO' : 'ABIERTO',
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: statusColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 14),
+            const Divider(height: 1, color: Color(0xFFE5E7EB)),
+            const SizedBox(height: 14),
+
+            // Detalles financieros
+            Expanded(
+              child: Column(
+                children: [
+                  // Bruto e IVA
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildFinanceItem(
+                          'Bruto',
+                          '${pedido.brutoTotal} €',
+                          Icons.receipt_rounded,
+                          const Color(0xFF6B7280),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildFinanceItem(
+                          'IVA (${pedido.iva}%)',
+                          '${pedido.precioIva} €',
+                          Icons.percent_rounded,
+                          const Color(0xFF3B82F6),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  // Descuento y Total
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildFinanceItem(
+                          'Descuento',
+                          '${pedido.descuento}%',
+                          Icons.local_offer_rounded,
+                          const Color(0xFFF59E0B),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildFinanceItem(
+                          'Total',
+                          '${pedido.total} €',
+                          Icons.euro_rounded,
+                          const Color(0xFF10B981),
+                          isHighlighted: true,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const Spacer(),
+
+                  // Comentario si existe
+                  if (pedido.comentario.trim().isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF3F4F6),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            Icons.comment_rounded,
+                            size: 16,
+                            color: Color(0xFF6B7280),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              pedido.comentario,
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                color: const Color(0xFF4B5563),
+                                fontStyle: FontStyle.italic,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFinanceItem(
+    String label,
+    String value,
+    IconData icon,
+    Color color, {
+    bool isHighlighted = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: isHighlighted ? color.withOpacity(0.1) : const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: isHighlighted
+              ? color.withOpacity(0.3)
+              : const Color(0xFFE5E7EB),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.poppins(
+                    fontSize: 10,
+                    color: const Color(0xFF9CA3AF),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  value,
+                  style: GoogleFonts.poppins(
+                    fontSize: isHighlighted ? 14 : 13,
+                    fontWeight: isHighlighted
+                        ? FontWeight.w700
+                        : FontWeight.w600,
+                    color: isHighlighted ? color : const Color(0xFF1F2937),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================
+  // DIALOGO ACTUALIZAR CLIENTE
+  // ============================================================
   Future<Cliente?> _showUpdateClienteDialog(
     BuildContext context,
     Cliente cliente, {
-    required bool isAdmin, // 👈 pásalo desde tu estado de auth
+    required bool isAdmin,
   }) async {
     final formKey = GlobalKey<FormState>();
 
@@ -679,7 +830,6 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsPage> {
             Widget buildForm({List<Vendedor>? vendedoresData}) {
               vendedores = vendedoresData ?? vendedores;
 
-              // Solo si admin y hay vendedores, asegura que selected exista
               if (isAdmin &&
                   vendedores.isNotEmpty &&
                   !vendedores.any((v) => v.id == selectedIdVendedor)) {
@@ -694,44 +844,74 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsPage> {
                     children: [
                       TextFormField(
                         controller: nombreCtrl,
-                        decoration: const InputDecoration(labelText: "Nombre"),
+                        decoration: InputDecoration(
+                          labelText: "Nombre",
+                          labelStyle: GoogleFonts.poppins(),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
                         validator: (v) => (v == null || v.trim().isEmpty)
                             ? "Requerido"
                             : null,
                       ),
+                      const SizedBox(height: 16),
                       TextFormField(
                         controller: cifCtrl,
-                        decoration: const InputDecoration(labelText: "CIF"),
+                        decoration: InputDecoration(
+                          labelText: "CIF",
+                          labelStyle: GoogleFonts.poppins(),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
                         validator: (v) => (v == null || v.trim().isEmpty)
                             ? "Requerido"
                             : null,
                       ),
+                      const SizedBox(height: 16),
                       TextFormField(
                         controller: telCtrl,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: "Teléfono",
+                          labelStyle: GoogleFonts.poppins(),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                         keyboardType: TextInputType.phone,
                       ),
+                      const SizedBox(height: 16),
                       TextFormField(
                         controller: emailCtrl,
-                        decoration: const InputDecoration(labelText: "Correo"),
+                        decoration: InputDecoration(
+                          labelText: "Correo",
+                          labelStyle: GoogleFonts.poppins(),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
                         keyboardType: TextInputType.emailAddress,
                       ),
-
-                      // ✅ SOLO ADMIN ve el desplegable
                       if (isAdmin) ...[
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 16),
                         DropdownButtonFormField<int>(
                           value: selectedIdVendedor,
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             labelText: "Vendedor",
+                            labelStyle: GoogleFonts.poppins(),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                           items: (vendedoresData ?? vendedores)
                               .map(
                                 (v) => DropdownMenuItem<int>(
                                   value: v.id,
-                                  child: Text("${v.nombre} ${v.apellido}"),
+                                  child: Text(
+                                    "${v.nombre} ${v.apellido}",
+                                    style: GoogleFonts.poppins(),
+                                  ),
                                 ),
                               )
                               .toList(),
@@ -747,11 +927,15 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsPage> {
             }
 
             return AlertDialog(
-              title: const Text("Actualizar cliente"),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: Text(
+                "Actualizar cliente",
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+              ),
               content: SizedBox(
                 width: 420,
-
-                // ✅ Si NO es admin, NO llamamos a getVendedores()
                 child: isAdmin
                     ? FutureBuilder<List<Vendedor>>(
                         future: vendedorService.getVendedores(),
@@ -772,7 +956,10 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsPage> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context, null),
-                  child: const Text("Cancelar"),
+                  child: Text(
+                    "Cancelar",
+                    style: GoogleFonts.poppins(color: Colors.grey),
+                  ),
                 ),
                 ElevatedButton(
                   onPressed: () async {
@@ -784,12 +971,9 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsPage> {
                       cif: cifCtrl.text.trim(),
                       telefono: telCtrl.text.trim(),
                       email: emailCtrl.text.trim(),
-
-                      // ✅ si NO es admin, mantenemos el vendedor original
                       idVendedor: isAdmin
                           ? (selectedIdVendedor ?? cliente.idVendedor)
                           : cliente.idVendedor,
-
                       idPedidos: cliente.idPedidos,
                       pedidosCerrados: cliente.pedidosCerrados,
                       pedidosAbiertos: cliente.pedidosAbiertos,
@@ -812,7 +996,20 @@ class _ClienteDetailsAdminPageState extends State<ClienteDetailsPage> {
                     );
                     Navigator.pop(context, ok);
                   },
-                  child: const Text("Guardar"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF3C75EF),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                  ),
+                  child: Text(
+                    "Guardar",
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                  ),
                 ),
               ],
             );
