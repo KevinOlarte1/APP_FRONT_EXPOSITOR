@@ -34,9 +34,9 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
   Cliente? cliente;
   List<LineaPedido> lineas = [];
   bool loadingLineas = true;
-  int? filtroGrupo = null; // null = sin filtro
+  int? filtroGrupo = null;
   List<LineaPedido> lineasFiltradas = [];
-  int grupoMaxConfig = 1; // Para construir el selector
+  int grupoMaxConfig = 1;
 
   late final TextEditingController _comentarioCtrl;
   bool _guardandoComentario = false;
@@ -52,10 +52,8 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
     setState(() {
       loadingLineas = true;
     });
-    print("Entra1");
 
     await _loadCliente();
-
     await _loadLineasPedido();
 
     grupoMaxConfig = await paramService.getGrupoMax();
@@ -73,13 +71,11 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
     });
   }
 
-  // CARGAR CLIENTE
   Future<void> _loadCliente() async {
     final cli = await clienteService.getClienteById(widget.pedido.idCliente);
     setState(() => cliente = cli);
   }
 
-  // CARGAR LÍNEAS
   Future<void> _loadLineasPedido() async {
     setState(() => loadingLineas = true);
 
@@ -96,7 +92,6 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
     _aplicarFiltro();
   }
 
-  // REFRESCAR PEDIDO + LÍNEAS + CLIENTE
   Future<void> _refreshPedido() async {
     final updated = await pedidoService.getPedido(
       idCliente: widget.pedido.idCliente,
@@ -115,139 +110,689 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
   @override
   Widget build(BuildContext context) {
     final pedido = widget.pedido;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isDesktop = screenWidth >= 900;
+    final isTablet = screenWidth >= 600 && screenWidth < 900;
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         backgroundColor: const Color(0xFF3C75EF),
+        elevation: 0,
         centerTitle: true,
         title: Text(
           "Pedido #${pedido.id}",
-          style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 18),
+        ),
+        actions: [
+          if (pedido.cerrado)
+            Container(
+              margin: const EdgeInsets.only(right: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.green.shade400,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.check_circle, size: 16, color: Colors.white),
+                  const SizedBox(width: 4),
+                  Text(
+                    "Cerrado",
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            Container(
+              margin: const EdgeInsets.only(right: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade400,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.edit_note, size: 16, color: Colors.white),
+                  const SizedBox(width: 4),
+                  Text(
+                    "Abierto",
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+      body: cliente == null
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _refreshPedido,
+              child: ListView(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isDesktop ? 40 : (isTablet ? 24 : 16),
+                  vertical: 20,
+                ),
+                children: [
+                  // Info Card compacta
+                  _buildInfoCardCompact(pedido, cliente!),
+
+                  const SizedBox(height: 20),
+
+                  // Comentario Card (solo si pedido abierto o tiene comentario)
+                  if (!widget.pedido.cerrado ||
+                      widget.pedido.comentario.isNotEmpty)
+                    _buildComentarioCard(),
+
+                  if (!widget.pedido.cerrado ||
+                      widget.pedido.comentario.isNotEmpty)
+                    const SizedBox(height: 20),
+
+                  // Lineas Card
+                  _buildLineasCard(),
+
+                  const SizedBox(height: 100),
+                ],
+              ),
+            ),
+    );
+  }
+
+  // ===========================================================
+  //                  CARD INFORMACION COMPACTA
+  // ===========================================================
+  Widget _buildInfoCardCompact(Pedido pedido, Cliente cliente) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isDesktop = screenWidth >= 700;
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Cliente y Fecha en una fila
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF3C75EF).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.person_outline,
+                    color: Color(0xFF3C75EF),
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        cliente.nombre,
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF1F2937),
+                        ),
+                      ),
+                      Text(
+                        cliente.cif,
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.calendar_today,
+                        size: 14,
+                        color: Colors.grey.shade600,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        formatFecha(pedido.fecha),
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Divider(height: 1),
+            ),
+
+            // Datos financieros en grid
+            if (isDesktop)
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildFinanceItem("Bruto Total", pedido.brutoTotal),
+                  ),
+                  Expanded(
+                    child: _buildFinanceItem(
+                      "Base Imponible",
+                      pedido.baseImponible,
+                      subtitle: "${pedido.descuento}% dto.",
+                    ),
+                  ),
+                  Expanded(
+                    child: _buildFinanceItem(
+                      "IVA",
+                      pedido.precioIva,
+                      subtitle: "${pedido.iva}%",
+                    ),
+                  ),
+                  Expanded(child: _buildTotalItem("Total Final", pedido.total)),
+                ],
+              )
+            else
+              Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildFinanceItem(
+                          "Bruto Total",
+                          pedido.brutoTotal,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildFinanceItem(
+                          "Base Imponible",
+                          pedido.baseImponible,
+                          subtitle: "${pedido.descuento}% dto.",
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildFinanceItem(
+                          "IVA",
+                          pedido.precioIva,
+                          subtitle: "${pedido.iva}%",
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildTotalItem("Total Final", pedido.total),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+
+            const SizedBox(height: 16),
+
+            // Botones de accion
+            _buildResponsiveActionButton(),
+          ],
         ),
       ),
+    );
+  }
 
-      body: ListView(
-        padding: const EdgeInsets.all(20),
+  Widget _buildFinanceItem(String label, String value, {String? subtitle}) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 20),
-
-          // ---------- ICONO ----------
-          Center(
-            child: Container(
-              width: 110,
-              height: 110,
-              decoration: BoxDecoration(
-                color: Colors.blue.shade200,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.receipt_long,
-                size: 60,
-                color: Colors.white,
-              ),
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w500,
             ),
           ),
-
-          const SizedBox(height: 15),
-
-          // ---------- TÍTULO ----------
-          Center(
-            child: Text(
-              "Pedido #${pedido.id}",
+          const SizedBox(height: 4),
+          Text(
+            "${value} \u20AC",
+            style: GoogleFonts.poppins(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF1F2937),
+            ),
+          ),
+          if (subtitle != null)
+            Text(
+              subtitle,
               style: GoogleFonts.poppins(
-                fontSize: 26,
-                fontWeight: FontWeight.w600,
+                fontSize: 11,
+                color: Colors.grey.shade500,
               ),
             ),
-          ),
+        ],
+      ),
+    );
+  }
 
-          const SizedBox(height: 5),
-
-          // ---------- FECHA ----------
-          Center(
-            child: Text(
-              formatFecha(pedido.fecha),
-              style: GoogleFonts.poppins(
-                fontSize: 15,
-                color: Colors.grey.shade600,
-              ),
+  Widget _buildTotalItem(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF3C75EF), Color(0xFF1D4ED8)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              color: Colors.white70,
+              fontWeight: FontWeight.w500,
             ),
           ),
-
-          const SizedBox(height: 30),
-
-          if (cliente != null)
-            _buildInfoCard(pedido, cliente!)
-          else
-            const Center(child: CircularProgressIndicator()),
-
-          const SizedBox(height: 30),
-
-          if (cliente != null) //todo: carta con el comentario + btn guardar
-            _buildComentarioCard()
-          else
-            const Center(child: CircularProgressIndicator()),
-
-          _buildLineasCard(),
+          const SizedBox(height: 4),
+          Text(
+            "${value} \u20AC",
+            style: GoogleFonts.poppins(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
         ],
       ),
     );
   }
 
   // ===========================================================
-  //                  CARD INFORMACIÓN PRINCIPAL
+  //                    CARD COMENTARIO
   // ===========================================================
+  Widget _buildComentarioCard() {
+    final bool isCerrado = widget.pedido.cerrado;
 
-  Widget _buildInfoCard(Pedido pedido, Cliente cliente) {
     return Card(
-      elevation: 6,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      shadowColor: Colors.black26,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 30),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ----- Columna izquierda -----
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _titleItem("Bruto total:", "${pedido.brutoTotal} €"),
-                  const SizedBox(height: 16),
-                  _titleItem(
-                    "Base imponible:",
-                    "${pedido.baseImponible} €   •   ${pedido.descuento}%",
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade50,
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  const SizedBox(height: 16),
-                  _titleItem(
-                    "IVA:",
-                    "${pedido.precioIva} €   •   ${pedido.iva}%",
+                  child: Icon(
+                    Icons.comment_outlined,
+                    color: Colors.amber.shade700,
+                    size: 18,
                   ),
-                  const SizedBox(height: 16),
-                  _titleItem("Total final:", "${pedido.total} €"),
-                  const SizedBox(height: 16),
-                  _titleItem(
-                    "Num de líneas:",
-                    pedido.idLineaPedido.length.toString(),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  "Comentario",
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF1F2937),
                   ),
-                ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _comentarioCtrl,
+              maxLines: 3,
+              readOnly: isCerrado,
+              decoration: InputDecoration(
+                hintText: isCerrado
+                    ? "Sin comentarios"
+                    : "Escribe un comentario para este pedido...",
+                hintStyle: GoogleFonts.poppins(
+                  color: Colors.grey.shade400,
+                  fontSize: 14,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey.shade200),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey.shade200),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(
+                    color: Color(0xFF3C75EF),
+                    width: 1.5,
+                  ),
+                ),
+                filled: true,
+                fillColor: isCerrado ? Colors.grey.shade50 : Colors.white,
+                contentPadding: const EdgeInsets.all(14),
+              ),
+            ),
+            if (!isCerrado) ...[
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: ElevatedButton.icon(
+                  icon: _guardandoComentario
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.save_outlined, size: 18),
+                  label: Text(
+                    _guardandoComentario ? "Guardando..." : "Guardar",
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF3C75EF),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    elevation: 0,
+                  ),
+                  onPressed: _guardandoComentario ? null : _guardarComentario,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _guardarComentario() async {
+    final text = _comentarioCtrl.text.trim();
+
+    setState(() => _guardandoComentario = true);
+
+    final ok = await pedidoService.putComentario(
+      idCliente: widget.pedido.idCliente,
+      idPedido: widget.pedido.id,
+      comentario: text,
+    );
+
+    setState(() => _guardandoComentario = false);
+
+    if (ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Comentario actualizado", style: GoogleFonts.poppins()),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      await _refreshPedido();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "Error al actualizar el comentario",
+            style: GoogleFonts.poppins(),
+          ),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  // ===========================================================
+  //                    CARD LINEAS DEL PEDIDO
+  // ===========================================================
+  Widget _buildLineasCard() {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF3C75EF).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.list_alt,
+                    color: Color(0xFF3C75EF),
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  "Lineas del Pedido",
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF1F2937),
+                  ),
+                ),
+                const Spacer(),
+                // Contador de lineas
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    "${lineasFiltradas.length} items",
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            // Filtro por grupo
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.grey.shade200),
+                color: Colors.white,
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<int?>(
+                  value: filtroGrupo,
+                  isExpanded: false,
+                  icon: const Icon(Icons.keyboard_arrow_down, size: 20),
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: Colors.black87,
+                  ),
+                  items: [
+                    const DropdownMenuItem(
+                      value: null,
+                      child: Text("Todos los grupos"),
+                    ),
+                    ...List.generate(
+                      grupoMaxConfig,
+                      (i) => DropdownMenuItem(
+                        value: i + 1,
+                        child: Text("Grupo ${i + 1}"),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      filtroGrupo = value;
+                      _aplicarFiltro();
+                    });
+                  },
+                ),
               ),
             ),
 
-            const SizedBox(width: 40),
+            const SizedBox(height: 16),
 
-            // ----- Columna derecha -----
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _titleItem("ID del pedido:", pedido.id.toString()),
-                  const SizedBox(height: 16),
-                  _titleItem("Cliente:", "${cliente.nombre} - ${cliente.cif}"),
-                  const SizedBox(height: 16),
-                  _titleItem("Fecha:", formatFecha(pedido.fecha)),
-                ],
+            // Boton anadir linea
+            if (!widget.pedido.cerrado) _buildAddLineaButton(),
+
+            if (!widget.pedido.cerrado) const SizedBox(height: 16),
+
+            // Lista de lineas
+            if (loadingLineas)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(30),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (lineasFiltradas.isEmpty)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(30),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.inbox_outlined,
+                        size: 48,
+                        color: Colors.grey.shade300,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        "No hay lineas registradas",
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: lineasFiltradas.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, index) =>
+                    _buildLineaItem(lineasFiltradas[index]),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAddLineaButton() {
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: _showAddLineaDialog,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFF3C75EF).withOpacity(0.05),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: const Color(0xFF3C75EF).withOpacity(0.2),
+            style: BorderStyle.solid,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF3C75EF),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Icon(Icons.add, color: Colors.white, size: 16),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              "Anadir nueva linea",
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF3C75EF),
               ),
             ),
           ],
@@ -256,67 +801,208 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
     );
   }
 
-  // -------------------------------------------------------------------
-  // DIALOGO AÑADIR LÍNEA
-  // -------------------------------------------------------------------
-  Widget _buildAddLineaButton() {
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: _showAddLineaDialog,
-      child: Ink(
-        decoration: BoxDecoration(
-          color: Colors.blue.shade50,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.blue.shade300),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
-          child: Row(
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: Colors.blue,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.add, color: Colors.white, size: 22),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                "Añadir línea",
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.blue.shade900,
-                ),
-              ),
-            ],
+  // ===========================================================
+  //                    ITEM DE LINEA (DESTACAR SIN STOCK)
+  // ===========================================================
+  Widget _buildLineaItem(LineaPedido linea) {
+    final bool sinStockFinal = linea.stockFinal == null;
+
+    return FutureBuilder(
+      future: productoService.getProducto(linea.idProducto),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          );
+        }
+
+        final Producto producto = snapshot.data!;
+        final String totalLinea = (linea.precio * linea.cantidad)
+            .toStringAsFixed(2);
+
+        return Container(
+          margin: const EdgeInsets.symmetric(vertical: 8),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: sinStockFinal ? Colors.orange.shade50 : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: sinStockFinal
+                  ? Colors.orange.shade300
+                  : Colors.grey.shade200,
+              width: sinStockFinal ? 1.5 : 1,
+            ),
           ),
-        ),
-      ),
+          child: InkWell(
+            onDoubleTap: widget.pedido.cerrado
+                ? null
+                : () => _showEditLineaDialog(linea),
+            borderRadius: BorderRadius.circular(12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Icono producto
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: sinStockFinal
+                        ? Colors.orange.shade100
+                        : const Color(0xFF3C75EF).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.inventory_2_outlined,
+                    color: sinStockFinal
+                        ? Colors.orange.shade700
+                        : const Color(0xFF3C75EF),
+                    size: 22,
+                  ),
+                ),
+
+                const SizedBox(width: 14),
+
+                // Info linea
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Nombre producto + grupo
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              producto.descripcion,
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                                color: const Color(0xFF1F2937),
+                              ),
+                            ),
+                          ),
+                          if (linea.grupo != null)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                "G${linea.grupo}",
+                                style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      // Cantidad, precio, stock
+                      Wrap(
+                        spacing: 16,
+                        runSpacing: 6,
+                        children: [
+                          _buildLineaDetail(
+                            "Cantidad",
+                            linea.cantidad.toString(),
+                          ),
+                          _buildLineaDetail(
+                            "Precio",
+                            "${linea.precio.toStringAsFixed(2)} \u20AC",
+                          ),
+                          _buildLineaDetail(
+                            "Stock Final",
+                            linea.stockFinal?.toString() ?? "Pendiente",
+                            highlight: sinStockFinal,
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      // Total linea
+                      Row(
+                        children: [
+                          Text(
+                            "Total: ",
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          Text(
+                            "$totalLinea \u20AC",
+                            style: GoogleFonts.poppins(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF1F2937),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Botones accion
+                if (!widget.pedido.cerrado)
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: "Actualizar stock final",
+                        icon: Icon(
+                          Icons.edit_note,
+                          color: sinStockFinal
+                              ? Colors.orange.shade700
+                              : Colors.blue,
+                        ),
+                        onPressed: () => _showStockFinalDialog(context, linea),
+                      ),
+                      IconButton(
+                        tooltip: "Eliminar linea",
+                        icon: Icon(
+                          Icons.delete_outline,
+                          color: Colors.red.shade400,
+                        ),
+                        onPressed: () => _confirmDeleteLinea(linea),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _titleItem(String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildLineaDetail(
+    String label,
+    String value, {
+    bool highlight = false,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          label,
-          style: GoogleFonts.poppins(
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-            color: Colors.black87,
-          ),
+          "$label: ",
+          style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey.shade500),
         ),
-        const SizedBox(height: 3),
         Text(
           value,
           style: GoogleFonts.poppins(
-            fontSize: 15,
-            fontWeight: FontWeight.w500,
-            color: Colors.grey.shade800,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: highlight ? Colors.orange.shade700 : Colors.grey.shade700,
           ),
         ),
       ],
@@ -324,150 +1010,71 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
   }
 
   // ===========================================================
-  //                    CARD LÍNEAS DEL PEDIDO
+  //                    BOTONES DE ACCION
   // ===========================================================
-  Widget _buildLineasCard() {
-    return Card(
-      elevation: 6,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      shadowColor: Colors.black26,
-      child: Padding(
-        padding: const EdgeInsets.all(22),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ---------- TÍTULO ----------
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // ---------- TÍTULO ----------
-                      Text(
-                        "Gestión de líneas",
-                        style: GoogleFonts.poppins(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.black87,
-                        ),
-                      ),
-
-                      const SizedBox(height: 10),
-
-                      // ------------------ FILTRO POR GRUPO ------------------
-                      // ------------------ FILTRO POR GRUPO ------------------
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: Colors.grey.shade400,
-                            width: 1,
-                          ),
-                          color: Colors.grey.shade100,
-                        ),
-                        width: 160, // Caja pequeña elegante
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<int?>(
-                            value: filtroGrupo,
-                            isExpanded: true,
-                            icon: const Icon(Icons.arrow_drop_down, size: 20),
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              color: Colors.black87,
-                            ),
-                            items: [
-                              const DropdownMenuItem(
-                                value: null,
-                                child: Text("Todos"),
-                              ),
-                              ...List.generate(
-                                grupoMaxConfig,
-                                (i) => DropdownMenuItem(
-                                  value: i + 1,
-                                  child: Text("Grupo ${i + 1}"),
-                                ),
-                              ),
-                            ],
-                            onChanged: (value) {
-                              setState(() {
-                                filtroGrupo = value; // cambia filtro
-                                _aplicarFiltro(); // actualiza lista filtrada
-                              });
-                            },
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // ---------- BOTÓN PARA PANTALLAS PEQUEÑAS ----------
-                      if (MediaQuery.of(context).size.width < 500)
-                        _buildResponsiveActionButton(),
-                    ],
-                  ),
-                ),
-
-                // ---------- BOTÓN PARA PANTALLAS GRANDES ----------
-                if (MediaQuery.of(context).size.width >= 500)
-                  _buildResponsiveActionButton(),
-              ],
+  Widget _buildResponsiveActionButton() {
+    if (widget.pedido.cerrado) {
+      return Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: [
+          _buildActionButton(
+            icon: Icons.copy,
+            label: "Clonar",
+            color: const Color(0xFF3C75EF),
+            onPressed: () => _clonarPedido(context),
+          ),
+          _buildActionButton(
+            icon: Icons.picture_as_pdf,
+            label: "PDF",
+            color: Colors.green,
+            onPressed: _descargarPedidoPdf,
+          ),
+          if (cliente?.telefono != null && cliente!.telefono.isNotEmpty)
+            _buildActionButton(
+              icon: Icons.chat,
+              label: "WhatsApp",
+              color: const Color(0xFF25D366),
+              onPressed: () => _abrirWhatsApp(cliente!.telefono),
             ),
+        ],
+      );
+    }
 
-            const SizedBox(height: 18),
-
-            // ---------- BOTÓN AÑADIR LÍNEA ----------
-            if (!widget.pedido.cerrado) _buildAddLineaButton(),
-
-            if (!widget.pedido.cerrado)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 16),
-                child: Divider(thickness: 1),
-              ),
-
-            // ---------- LÍNEAS ----------
-            if (loadingLineas)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(20),
-                  child: CircularProgressIndicator(),
-                ),
-              )
-            else if (lineas.isEmpty)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Text(
-                    "No hay líneas registradas",
-                    style: GoogleFonts.poppins(
-                      fontSize: 15,
-                      color: Colors.grey,
-                    ),
-                  ),
-                ),
-              )
-            else
-              Column(
-                children: [
-                  for (int i = 0; i < lineasFiltradas.length; i++) ...[
-                    _buildLineaReal(lineasFiltradas[i]),
-                    if (i < lineasFiltradas.length - 1)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 16),
-                        child: Divider(thickness: 1),
-                      ),
-                  ],
-                ],
-              ),
-          ],
-        ),
-      ),
+    return _buildActionButton(
+      icon: Icons.lock_outline,
+      label: "Cerrar Pedido",
+      color: Colors.red.shade400,
+      onPressed: _confirmCerrarPedido,
     );
   }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onPressed,
+  }) {
+    return ElevatedButton.icon(
+      icon: Icon(icon, size: 18),
+      label: Text(
+        label,
+        style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        elevation: 0,
+      ),
+      onPressed: onPressed,
+    );
+  }
+
+  // ===========================================================
+  //                    DIALOGS Y FUNCIONES
+  // ===========================================================
 
   void _showAddLineaDialog() async {
     Producto? productoSeleccionado;
@@ -488,7 +1095,7 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
                 borderRadius: BorderRadius.circular(16),
               ),
               title: Text(
-                "Añadir línea al pedido",
+                "Anadir linea al pedido",
                 style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
               ),
               content: Column(
@@ -549,7 +1156,6 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
                     ),
                   ),
                   const SizedBox(height: 20),
-
                   DropdownButtonFormField<int>(
                     value: grupoSeleccionado,
                     decoration: InputDecoration(
@@ -579,6 +1185,9 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
                   onPressed: () => Navigator.pop(dialogContext),
                 ),
                 ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF3C75EF),
+                  ),
                   child: const Text("Guardar"),
                   onPressed: () async {
                     if (productoSeleccionado == null ||
@@ -608,9 +1217,6 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
     );
   }
 
-  // -------------------------------------------------------------------
-  // SELECTOR DE PRODUCTOS
-  // -------------------------------------------------------------------
   Future<Producto?> _showProductoSelector() async {
     List<Producto> productos = await productoService.getAllProductos();
     List<Producto> filtrados = List.from(productos);
@@ -633,7 +1239,7 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
                   TextField(
                     controller: searchCtrl,
                     decoration: InputDecoration(
-                      labelText: "Buscar por nombre o categoría",
+                      labelText: "Buscar por nombre o categoria",
                       prefixIcon: const Icon(Icons.search),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
@@ -673,12 +1279,12 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                "${p.precio.toStringAsFixed(2)} €",
+                                "${p.precio.toStringAsFixed(2)} \u20AC",
                                 style: GoogleFonts.poppins(fontSize: 13),
                               ),
                               if (p.categoria != null)
                                 Text(
-                                  "Categoría: ${p.categoria}",
+                                  "Categoria: ${p.categoria}",
                                   style: GoogleFonts.poppins(
                                     fontSize: 12,
                                     color: Colors.blueGrey,
@@ -695,153 +1301,6 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
               ),
             );
           },
-        );
-      },
-    );
-  }
-
-  // ===========================================================
-  //                    ITEM DE LÍNEA REAL
-  // ===========================================================
-  Widget _buildLineaReal(LineaPedido linea) {
-    return FutureBuilder(
-      future: productoService.getProducto(linea.idProducto),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const SizedBox(
-            height: 40,
-            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-          );
-        }
-
-        final Producto producto = snapshot.data!;
-        final String totalLinea = (linea.precio * linea.cantidad)
-            .toStringAsFixed(2);
-
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ✅ TODA LA ZONA CLICABLE (icono + textos)
-            Expanded(
-              child: InkWell(
-                onDoubleTap: widget.pedido.cerrado
-                    ? null
-                    : () => _showEditLineaDialog(linea),
-                borderRadius: BorderRadius.circular(12),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 6,
-                    horizontal: 2,
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // ---------- ICONO PRODUCTO ----------
-                      Container(
-                        width: 42,
-                        height: 42,
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade100,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(
-                          Icons.shopping_bag,
-                          color: Colors.blue,
-                          size: 22,
-                        ),
-                      ),
-
-                      const SizedBox(width: 15),
-
-                      // ---------- DATOS DE LA LÍNEA ----------
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              producto.descripcion,
-                              style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 16,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-
-                            Text(
-                              "Cantidad: ${linea.cantidad}",
-                              style: GoogleFonts.poppins(fontSize: 14),
-                            ),
-
-                            RichText(
-                              text: TextSpan(
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.black,
-                                ),
-                                children: [
-                                  const TextSpan(text: "Stock final: "),
-                                  TextSpan(
-                                    text: linea.stockFinal?.toString() ?? "...",
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-
-                            const SizedBox(height: 4),
-
-                            Text(
-                              "Precio unitario: ${linea.precio.toStringAsFixed(2)} €",
-                              style: GoogleFonts.poppins(fontSize: 14),
-                            ),
-
-                            const SizedBox(height: 6),
-
-                            // 🔥 TOTAL + BOTÓN REFRESH ABAJO
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    "Total línea: $totalLinea €",
-                                    style: GoogleFonts.poppins(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 15,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (!widget.pedido.cerrado)
-                        Column(
-                          children: [
-                            IconButton(
-                              tooltip: "Actualizar stock final",
-                              icon: const Icon(
-                                Icons.refresh,
-                                color: Colors.blue,
-                              ),
-                              onPressed: () =>
-                                  _showStockFinalDialog(context, linea),
-                            ),
-                            const SizedBox(height: 30),
-                            IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () => _confirmDeleteLinea(linea),
-                            ),
-                          ],
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
         );
       },
     );
@@ -865,7 +1324,7 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
             borderRadius: BorderRadius.circular(16),
           ),
           title: Text(
-            "Editar línea",
+            "Editar linea",
             style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
           ),
           content: Column(
@@ -873,15 +1332,13 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                producto?.descripcion ?? "Sin descripción",
+                producto?.descripcion ?? "Sin descripcion",
                 style: GoogleFonts.poppins(
                   fontWeight: FontWeight.w700,
                   fontSize: 16,
                 ),
               ),
-
               const SizedBox(height: 18),
-
               TextField(
                 controller: cantidadCtrl,
                 keyboardType: TextInputType.number,
@@ -893,7 +1350,6 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
                 ),
               ),
               const SizedBox(height: 15),
-
               TextField(
                 controller: precioCtrl,
                 keyboardType: TextInputType.number,
@@ -912,7 +1368,9 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
               onPressed: () => Navigator.pop(dialogContext),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF3C75EF),
+              ),
               child: Text("Guardar", style: GoogleFonts.poppins()),
               onPressed: () async {
                 final cantidad = int.tryParse(cantidadCtrl.text);
@@ -941,9 +1399,6 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
     );
   }
 
-  // ===========================================================
-  //                    CONFIRMAR BORRADO
-  // ===========================================================
   void _confirmDeleteLinea(LineaPedido linea) {
     showDialog(
       context: context,
@@ -953,11 +1408,11 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
             borderRadius: BorderRadius.circular(15),
           ),
           title: Text(
-            "Eliminar línea",
+            "Eliminar linea",
             style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
           ),
           content: Text(
-            "¿Seguro que quieres eliminar esta línea?",
+            "Seguro que quieres eliminar esta linea?",
             style: GoogleFonts.poppins(),
           ),
           actions: [
@@ -982,7 +1437,7 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text("Error al eliminar la línea"),
+                      content: Text("Error al eliminar la linea"),
                       backgroundColor: Colors.red,
                     ),
                   );
@@ -1008,7 +1463,7 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
             style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
           ),
           content: Text(
-            "¿Seguro que quieres cerrar este pedido?\n\nUna vez cerrado, no podrás modificar líneas.",
+            "Seguro que quieres cerrar este pedido?\n\nUna vez cerrado, no podras modificar lineas.",
             style: GoogleFonts.poppins(),
           ),
           actions: [
@@ -1050,122 +1505,6 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
     );
   }
 
-  Widget _buildResponsiveActionButton() {
-    if (widget.pedido.cerrado) {
-      return Wrap(
-        spacing: 12,
-        runSpacing: 12,
-        children: [
-          // 🔵 CLONAR
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            onPressed: () {
-              _clonarPedido(context);
-
-              // aquí luego llamas a tu endpoint de clonar
-              // y cuando termine: Navigator.pop(context);  (para cerrar el dialog)
-            },
-            child: Text(
-              "Clonar",
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-              ),
-            ),
-          ),
-
-          // 🟢 PDF
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            onPressed: _descargarPedidoPdf,
-            child: Text(
-              "Descargar PDF",
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-              ),
-            ),
-          ),
-          // 🟢 WHATSAPP (NUEVO)
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF25D366), // verde WhatsApp
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            onPressed: cliente?.telefono != null
-                ? () => _abrirWhatsApp(cliente!.telefono)
-                : null,
-            icon: const Icon(Icons.chat, color: Colors.white),
-            label: Text(
-              "WhatsApp",
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-
-    // 🔴 CERRAR PEDIDO (cuando NO está cerrado)
-    return ElevatedButton(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.redAccent,
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-      onPressed: _confirmCerrarPedido,
-      child: Text(
-        "Cerrar pedido",
-        style: GoogleFonts.poppins(
-          fontWeight: FontWeight.w600,
-          color: Colors.white,
-        ),
-      ),
-    );
-  }
-
-  Future<void> _descargarPedidoPdf() async {
-    final bytes = await PedidoService.descargarPedidoPdf(
-      idCliente: widget.pedido.idCliente,
-      idPedido: widget.pedido.id,
-    );
-
-    if (bytes != null) {
-      await downloadBytes(bytes, "PedidpPDF.pdf");
-    }
-  }
-
-  // ===========================================================
-  //                    FORMATEAR FECHA
-  // ===========================================================
-  String formatFecha(String fechaISO) {
-    try {
-      final fecha = DateTime.parse(fechaISO);
-      return "${fecha.day.toString().padLeft(2, '0')}/"
-          "${fecha.month.toString().padLeft(2, '0')}/"
-          "${fecha.year}";
-    } catch (_) {
-      return fechaISO;
-    }
-  }
-
   void _showStockFinalDialog(BuildContext context, LineaPedido linea) {
     final controller = TextEditingController(
       text: linea.stockFinal?.toString() ?? "",
@@ -1175,13 +1514,21 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          title: const Text("Stock final"),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text(
+            "Stock final",
+            style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+          ),
           content: TextField(
             controller: controller,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               hintText: "Introduce el nuevo stock",
-              border: OutlineInputBorder(),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
           ),
           actions: [
@@ -1190,13 +1537,16 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
               child: const Text("Cancelar"),
             ),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF3C75EF),
+              ),
               onPressed: () async {
                 final texto = controller.text.trim();
 
                 if (texto.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text("El stock no puede estar vacío"),
+                      content: Text("El stock no puede estar vacio"),
                     ),
                   );
                   return;
@@ -1206,7 +1556,7 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
 
                 if (nuevoStock == null || nuevoStock < 0) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Introduce un número válido")),
+                    const SnackBar(content: Text("Introduce un numero valido")),
                   );
                   return;
                 }
@@ -1224,10 +1574,9 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text("Stock actualizado correctamente"),
+                      backgroundColor: Colors.green,
                     ),
                   );
-
-                  // 🔥 Si quieres refrescar la UI:
                   setState(() {
                     linea.stockFinal = nuevoStock;
                   });
@@ -1235,6 +1584,7 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text("Error al actualizar el stock"),
+                      backgroundColor: Colors.red,
                     ),
                   );
                 }
@@ -1245,6 +1595,17 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
         );
       },
     );
+  }
+
+  Future<void> _descargarPedidoPdf() async {
+    final bytes = await PedidoService.descargarPedidoPdf(
+      idCliente: widget.pedido.idCliente,
+      idPedido: widget.pedido.id,
+    );
+
+    if (bytes != null) {
+      await downloadBytes(bytes, "PedidoPDF.pdf");
+    }
   }
 
   void _clonarPedido(BuildContext context) {
@@ -1260,7 +1621,7 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
             style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
           ),
           content: Text(
-            "¿Quieres realmente clonar este pedido?",
+            "Quieres realmente clonar este pedido?",
             style: GoogleFonts.poppins(),
           ),
           actions: [
@@ -1269,9 +1630,11 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
               child: Text("Cancelar", style: GoogleFonts.poppins()),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF3C75EF),
+              ),
               onPressed: () async {
-                Navigator.pop(ctx); // cerrar confirmación
+                Navigator.pop(ctx);
 
                 try {
                   final pedidoNuevo = await pedidoService.addPedido(
@@ -1298,7 +1661,7 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text("❌ Error al clonar el pedido"),
+                        content: Text("Error al clonar el pedido"),
                         backgroundColor: Colors.red,
                       ),
                     );
@@ -1306,7 +1669,7 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
                 } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text("❌ Error: $e"),
+                      content: Text("Error: $e"),
                       backgroundColor: Colors.red,
                     ),
                   );
@@ -1331,8 +1694,6 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
   }
 
   Future<void> _crearLineasPedido(Pedido pedidoNuevo) async {
-    // ✅ usamos las líneas ya cargadas en esta pantalla
-    // (si quieres clonar solo el grupo filtrado: cambia "lineas" por "lineasFiltradas")
     final List<LineaPedido> origen = List.from(lineas);
 
     if (origen.isEmpty) return;
@@ -1345,170 +1706,17 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
           linea.idProducto,
           linea.cantidad + (linea.stockFinal ?? 0),
           linea.precio,
-          linea.grupo ?? 1, // por si algún grupo viene null
+          linea.grupo ?? 1,
         );
       } catch (e) {
-        // si alguna línea falla, seguimos con las demás
-        debugPrint("❌ Error clonando línea ${linea.id}: $e");
+        debugPrint("Error clonando linea ${linea.id}: $e");
       }
     }
-  }
-
-  Widget _buildComentarioCard() {
-    final bool isCerrado = widget.pedido.cerrado;
-
-    return Card(
-      elevation: 6,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      shadowColor: Colors.black26,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 22),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Título
-            Row(
-              children: [
-                const Icon(Icons.comment, color: Colors.blue),
-                const SizedBox(width: 10),
-                Text(
-                  "Comentario",
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.black87,
-                  ),
-                ),
-                const Spacer(),
-                if (isCerrado)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade200,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      "Cerrado",
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade700,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-
-            const SizedBox(height: 14),
-
-            TextField(
-              controller: _comentarioCtrl,
-              maxLines: 4,
-              readOnly: isCerrado,
-              decoration: InputDecoration(
-                hintText: "Añade un comentario para este pedido...",
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: Colors.blue, width: 1.4),
-                ),
-                filled: true,
-                fillColor: isCerrado ? Colors.grey.shade100 : Colors.white,
-                contentPadding: const EdgeInsets.all(14),
-              ),
-            ),
-
-            const SizedBox(height: 14),
-
-            Align(
-              alignment: Alignment.centerRight,
-              child: ElevatedButton.icon(
-                icon: _guardandoComentario
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.save),
-                label: Text(
-                  _guardandoComentario ? "Guardando..." : "Guardar",
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 12,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                onPressed: (isCerrado || _guardandoComentario)
-                    ? null
-                    : () async {
-                        final text = _comentarioCtrl.text.trim();
-
-                        if (text.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                "El comentario no puede estar vacío",
-                              ),
-                            ),
-                          );
-                          return;
-                        }
-                        setState(() => _guardandoComentario = true);
-
-                        final ok = await pedidoService.putComentario(
-                          idCliente: widget.pedido.idCliente,
-                          idPedido: widget.pedido.id,
-                          comentario: _comentarioCtrl.text.trim(),
-                        );
-
-                        setState(() => _guardandoComentario = false);
-
-                        if (ok) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text("✅ Comentario actualizado"),
-                            ),
-                          );
-
-                          await _refreshPedido();
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                "❌ Error al actualizar el comentario",
-                              ),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        }
-                      },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Future<void> _abrirWhatsApp(String telefono) async {
     if (telefono.isEmpty) return;
 
-    // Limpia el número (quita espacios, guiones, etc.)
     final telefonoLimpio = telefono.replaceAll(RegExp(r'\D'), '');
 
     final url = Uri.parse("https://wa.me/$telefonoLimpio");
@@ -1519,6 +1727,17 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("No se pudo abrir WhatsApp")),
       );
+    }
+  }
+
+  String formatFecha(String fechaISO) {
+    try {
+      final fecha = DateTime.parse(fechaISO);
+      return "${fecha.day.toString().padLeft(2, '0')}/"
+          "${fecha.month.toString().padLeft(2, '0')}/"
+          "${fecha.year}";
+    } catch (_) {
+      return fechaISO;
     }
   }
 }
