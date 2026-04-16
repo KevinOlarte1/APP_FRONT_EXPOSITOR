@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:expositor_app/data/services/categoria_service.dart';
 import 'package:expositor_app/data/services/cliente_service.dart';
 import 'package:expositor_app/data/services/producto_service.dart';
+import 'package:expositor_app/presentation/pages/admin/config/gestion/gestion_clientes_page.dart';
 import 'package:expositor_app/presentation/pages/admin/product_admin_page.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -13,13 +14,19 @@ import 'package:expositor_app/data/models/vendedor.dart';
 import 'package:expositor_app/data/services/vendedor_service.dart';
 import 'package:expositor_app/data/services/parametros_globales_service.dart';
 import 'package:expositor_app/utils/download/download.dart';
+import 'package:expositor_app/presentation/pages/admin/config/gestion/gestion_categorias_page.dart';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 class ConfigVendedorPage extends StatefulWidget {
   final Vendedor vendedorActual;
+  final VoidCallback? onClientesChanged;
 
-  const ConfigVendedorPage({super.key, required this.vendedorActual});
+  const ConfigVendedorPage({
+    super.key,
+    required this.vendedorActual,
+    this.onClientesChanged,
+  });
 
   @override
   State<ConfigVendedorPage> createState() => _ConfigVendedorPageState();
@@ -380,14 +387,14 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
   Future<void> _onTapCategorias() async {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const ProductAdminPage()),
+      MaterialPageRoute(builder: (_) => const GestionCategoriasPage()),
     );
   }
 
   Future<void> _onTapClientes() async {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const ProductAdminPage()),
+      MaterialPageRoute(builder: (_) => const GestionClientesPage()),
     );
   }
 
