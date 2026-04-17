@@ -46,6 +46,7 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
 
   late final TextEditingController _ivaCtrl;
   late final TextEditingController _descuentoCtrl;
+  late final TextEditingController _grupoMaxCtrl;
 
   bool _savingProfile = false;
   bool _savingPedidoConfig = false;
@@ -62,6 +63,7 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
 
     _ivaCtrl = TextEditingController();
     _descuentoCtrl = TextEditingController();
+    _grupoMaxCtrl = TextEditingController();
 
     _loadPedidoConfig();
   }
@@ -74,6 +76,7 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
     _passwordCtrl.dispose();
     _ivaCtrl.dispose();
     _descuentoCtrl.dispose();
+    _grupoMaxCtrl.dispose();
     super.dispose();
   }
 
@@ -87,6 +90,7 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
 
       _ivaCtrl.text = (cfg['iva'] ?? '').toString();
       _descuentoCtrl.text = (cfg['descuento'] ?? '').toString();
+      _grupoMaxCtrl.text = (cfg['grupoMax'] ?? '1').toString();
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -154,20 +158,29 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
   Future<void> _savePedidoConfig() async {
     final iva = double.tryParse(_ivaCtrl.text.trim());
     final descuento = double.tryParse(_descuentoCtrl.text.trim());
+    final grupoMax = int.tryParse(_grupoMaxCtrl.text.trim());
 
-    if (iva == null || descuento == null) {
+    if (iva == null || descuento == null || grupoMax == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('IVA y descuento deben ser valores numéricos.'),
+          content: Text(
+            'IVA,descuento y el gurpo deben ser valores numéricos.',
+          ),
         ),
       );
       return;
     }
 
-    if (iva < 0 || iva > 100 || descuento < 0 || descuento > 100) {
+    if (iva < 0 ||
+        iva > 100 ||
+        descuento < 0 ||
+        descuento > 100 ||
+        grupoMax < 1) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('IVA y descuento deben estar entre 0 y 100.'),
+          content: Text(
+            'IVA y descuento deben estar entre 0 y 100. . Grupo máximo debe ser al menos 1.',
+          ),
         ),
       );
       return;
@@ -179,7 +192,7 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
       final ok = await _paramService.saveParams(
         iva: iva,
         descuento: descuento,
-        grupoMax: 1,
+        grupoMax: grupoMax,
       );
 
       if (!mounted) return;
@@ -528,6 +541,14 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
                                         ),
                                     onChanged: (_) => setState(() {}),
                                   ),
+                                  _ConfigTextField(
+                                    // <- Agregar este campo
+                                    label: 'Grupos máximos por línea',
+                                    controller: _grupoMaxCtrl,
+                                    hint: '2',
+                                    keyboardType: TextInputType.number,
+                                    onChanged: (_) => setState(() {}),
+                                  ),
                                 ],
                               ),
                               const SizedBox(height: 18),
@@ -552,6 +573,7 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
                                 onSecondaryTap: () {
                                   _ivaCtrl.text = '21';
                                   _descuentoCtrl.text = '0';
+                                  _grupoMaxCtrl.text = '1';
                                   setState(() {});
                                 },
                                 onPrimaryTap: _savingPedidoConfig
