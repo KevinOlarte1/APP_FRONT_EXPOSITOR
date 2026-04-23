@@ -1715,11 +1715,33 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
   }
 
   Future<void> _abrirWhatsApp(String telefono) async {
-    if (telefono.isEmpty) return;
+    if (telefono.trim().isEmpty) return;
 
     final telefonoLimpio = telefono.replaceAll(RegExp(r'\D'), '');
 
-    final url = Uri.parse("https://wa.me/$telefonoLimpio");
+    if (telefonoLimpio.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("El teléfono no es válido")));
+      return;
+    }
+
+    final token = widget.pedido.token;
+
+    if (token == null || token.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("El pedido no tiene token público")),
+      );
+      return;
+    }
+    //TODO CAMBIAR ESTO AL TENER DOMINIO O IP STATICA
+    final linkPdf = "http://192.168.1.103:8080/pedido/public/pdf?token=$token";
+
+    final mensaje = "Hola, aquí tienes el PDF de tu pedido: $linkPdf";
+
+    final url = Uri.parse(
+      "https://wa.me/$telefonoLimpio?text=${Uri.encodeComponent(mensaje)}",
+    );
 
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);

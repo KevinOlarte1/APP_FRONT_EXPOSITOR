@@ -16,6 +16,7 @@ class Pedido {
   final String baseImponible;
   final String precioIva;
   final String total;
+  final String token;
 
   Pedido({
     required this.id,
@@ -30,6 +31,7 @@ class Pedido {
     required this.precioIva,
     required this.total,
     required this.comentario,
+    required this.token,
   });
 
   factory Pedido.fromJson(Map<String, dynamic> json) {
@@ -50,6 +52,7 @@ class Pedido {
       precioIva: json["precioIva"] ?? "0.00",
       total: json["total"] ?? "0.00",
       comentario: json["comentario"] ?? "",
+      token: json["token"] ?? "",
     );
   }
 }
