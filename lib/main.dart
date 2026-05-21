@@ -16,21 +16,22 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  //Cargar Session desde storage
-  await AuthService.hydrateSession();
   Widget initialPage = const LoginPage();
 
-  //Decidir esta logged
-  if (Session.isLoggedIn) {
-    if (Session.isAdmin) {
-      initialPage = const HomeAdminPage();
+  try {
+    await AuthService.hydrateSession();
+
+    if (Session.isLoggedIn) {
+      initialPage = Session.isAdmin
+          ? const HomeAdminPage()
+          : const HomeUserPage();
     } else {
-      initialPage = const HomeUserPage();
+      final storage = SecureStorageService();
+      await storage.clearAll();
     }
-  } else {
-    // (opcional) si quieres limpiar por seguridad
-    final storage = SecureStorageService();
-    await storage.clearAll();
+  } catch (e) {
+    Session.clear();
+    initialPage = const LoginPage();
   }
 
   runApp(MyApp(initialPage: initialPage));

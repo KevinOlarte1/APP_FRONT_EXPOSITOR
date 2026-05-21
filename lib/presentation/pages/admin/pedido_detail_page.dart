@@ -1735,7 +1735,8 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
       return;
     }
     //TODO CAMBIAR ESTO AL TENER DOMINIO O IP STATICA
-    final linkPdf = "http://172.20.10.2:8080/pedido/download?token=$token";
+    final linkPdf =
+        " \n https://mi-app-deposito.cloud/pedido/download?token=$token";
 
     final mensaje = "Hola, aquí tienes el PDF de tu pedido: $linkPdf";
 

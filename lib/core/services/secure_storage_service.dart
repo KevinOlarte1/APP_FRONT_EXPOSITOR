@@ -76,7 +76,7 @@ class SecureStorageService {
   }
 
   Future<void> clearAll() async {
-    deleteRole();
-    deleteTokens();
+    await deleteRole();
+    await deleteTokens();
   }
 }
