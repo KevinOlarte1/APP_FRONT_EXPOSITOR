@@ -1,4 +1,5 @@
 import 'package:expositor_app/core/constants/app_colors.dart';
+import 'package:expositor_app/core/navigation/navigator_key.dart';
 import 'package:expositor_app/core/session/session.dart';
 import 'package:expositor_app/data/services/auth_service.dart';
 import 'package:flutter/material.dart';
@@ -7,34 +8,26 @@ import 'presentation/pages/login/login_page.dart';
 import 'presentation/pages/home/home_admin_page.dart';
 import 'presentation/pages/home/home_user_page.dart';
 import 'core/services/secure_storage_service.dart';
-import 'data/models/vendedor.dart';
-import 'data/services/vendedor_service.dart';
-import 'package:flutter/material.dart';
-
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final initialPage = await _resolveInitialPage();
+  runApp(MyApp(initialPage: initialPage));
+}
 
-  Widget initialPage = const LoginPage();
-
+Future<Widget> _resolveInitialPage() async {
   try {
     await AuthService.hydrateSession();
-
     if (Session.isLoggedIn) {
-      initialPage = Session.isAdmin
-          ? const HomeAdminPage()
-          : const HomeUserPage();
-    } else {
-      final storage = SecureStorageService();
-      await storage.clearAll();
+      return Session.isAdmin ? const HomeAdminPage() : const HomeUserPage();
     }
-  } catch (e) {
+    await SecureStorageService().clearAll();
+  } catch (e, stackTrace) {
+    debugPrint('[main] Error al hidratar sesión: $e');
+    debugPrint(stackTrace.toString());
     Session.clear();
-    initialPage = const LoginPage();
   }
-
-  runApp(MyApp(initialPage: initialPage));
+  return const LoginPage();
 }
 
 class MyApp extends StatelessWidget {
@@ -46,6 +39,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Expositor App',
+      // Material 3 desactivado para mantener consistencia con el diseño actual
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: AppColors.BLUE_BACKGROUND),
         textTheme: GoogleFonts.poppinsTextTheme(),

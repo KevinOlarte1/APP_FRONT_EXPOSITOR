@@ -4,9 +4,26 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
 
+// ─────────────────────────────────────────────
+//  Design tokens
+// ─────────────────────────────────────────────
+const _surface = Color(0xFFFFFFFF);
+const _bg = Color(0xFFF8FAFC);
+const _border = Color(0xFFE2E8F0);
+const _primary = Color(0xFF2563EB);
+const _textPrimary = Color(0xFF0F172A);
+const _textSecondary = Color(0xFF64748B);
+const _textTertiary = Color(0xFF94A3B8);
+const _success = Color(0xFF22C55E);
+const _successLight = Color(0xFFF0FDF4);
+const _warning = Color(0xFFF59E0B);
+const _warningLight = Color(0xFFFFFBEB);
+const _error = Color(0xFFEF4444);
+const _errorLight = Color(0xFFFEF2F2);
+
 class VendorCard extends StatefulWidget {
   final Vendedor vendedor;
-  final Function() onTap;
+  final VoidCallback onTap;
 
   const VendorCard({super.key, required this.vendedor, required this.onTap});
 
@@ -15,247 +32,358 @@ class VendorCard extends StatefulWidget {
 }
 
 class _VendorCardState extends State<VendorCard> {
-  final VendedorService vendedorService = VendedorService();
-  late Future<Map<String, int>> futurePedidos;
+  final VendedorService _service = VendedorService();
+  late Future<Map<String, int>> _futurePedidos;
+  bool _hovered = false;
 
   @override
   void initState() {
     super.initState();
-    // Cargar pedidos del vendedor cuando la tarjeta se construye
-    futurePedidos = vendedorService.getNumPedidos(
-      idVendedor: widget.vendedor.id,
-    );
+    _futurePedidos = _service.getNumPedidos(idVendedor: widget.vendedor.id);
+  }
+
+  String _getInitials() {
+    final n = widget.vendedor.nombre.trim();
+    final a = widget.vendedor.apellido.trim();
+    final ni = n.isNotEmpty ? n[0].toUpperCase() : '';
+    final ai = a.isNotEmpty ? a[0].toUpperCase() : '';
+    return '$ni$ai'.isNotEmpty ? '$ni$ai' : '?';
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<Map<String, int>>(
-      future: futurePedidos,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return _buildLoadingCard();
-        }
-
-        if (snapshot.hasError) {
-          return _buildErrorCard(snapshot.error.toString());
-        }
-
-        final pedidos = snapshot.data ?? {};
-        final int abiertos = pedidos["abierrtos"] ?? 0;
-        final int cerrados = pedidos["cerrados"] ?? 0;
-
-        return _buildCard(abiertos, cerrados);
-      },
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: _surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: _hovered ? _primary : _border,
+              width: _hovered ? 1.5 : 1,
+            ),
+            boxShadow: _hovered
+                ? [
+                    BoxShadow(
+                      color: _primary.withOpacity(0.08),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+          ),
+          child: FutureBuilder<Map<String, int>>(
+            future: _futurePedidos,
+            builder: (_, snap) {
+              if (snap.connectionState == ConnectionState.waiting) {
+                return _buildLoading();
+              }
+              if (snap.hasError) {
+                return _buildError();
+              }
+              final data = snap.data ?? {};
+              final abiertos = data['abiertos'] ?? data['abierrtos'] ?? 0;
+              final cerrados = data['cerrados'] ?? 0;
+              return _buildContent(abiertos, cerrados);
+            },
+          ),
+        ),
+      ),
     );
   }
 
-  //////////////////////////////////////////////////////////////////////////////
-  // 🔵 TARJETA PRINCIPAL
-  //////////////////////////////////////////////////////////////////////////////
+  Widget _buildContent(int abiertos, int cerrados) {
+    final v = widget.vendedor;
+    final total = abiertos + cerrados;
 
-  Widget _buildCard(int abiertos, int cerrados) {
-    final vendedor = widget.vendedor;
-
-    return GestureDetector(
-      onTap: widget.onTap,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 10),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-              color: Colors.black.withOpacity(0.08),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Header: avatar + nombre + email ──
+        Row(
+          children: [
+            // Initials avatar
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                _getInitials(),
+                style: GoogleFonts.poppins(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${v.nombre} ${v.apellido}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: _textPrimary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    v.email,
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      color: _textTertiary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            AnimatedOpacity(
+              opacity: _hovered ? 1 : 0,
+              duration: const Duration(milliseconds: 150),
+              child: const Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 13,
+                color: _primary,
+              ),
             ),
           ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+
+        const SizedBox(height: 12),
+        const Divider(height: 1, color: _border),
+        const SizedBox(height: 12),
+
+        // ── Donut chart + stats ──────────────
+        Expanded(
+          child: Row(
+            children: [
+              // Donut chart
+              SizedBox(
+                width: 80,
+                height: 80,
+                child: total == 0
+                    ? _buildEmptyChart()
+                    : PieChart(
+                        PieChartData(
+                          centerSpaceRadius: 26,
+                          sectionsSpace: 2,
+                          sections: [
+                            PieChartSectionData(
+                              color: _warning,
+                              value: abiertos.toDouble(),
+                              title: '',
+                              radius: 20,
+                            ),
+                            PieChartSectionData(
+                              color: _success,
+                              value: cerrados.toDouble(),
+                              title: '',
+                              radius: 20,
+                            ),
+                          ],
+                        ),
+                      ),
+              ),
+              const SizedBox(width: 16),
+
+              // Stats
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _StatPill(
+                      label: 'Abiertos',
+                      value: abiertos,
+                      color: _warning,
+                      bg: _warningLight,
+                    ),
+                    const SizedBox(height: 8),
+                    _StatPill(
+                      label: 'Cerrados',
+                      value: cerrados,
+                      color: _success,
+                      bg: _successLight,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyChart() {
+    return Container(
+      width: 80,
+      height: 80,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: _border, width: 8),
+        color: _bg,
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        '0',
+        style: GoogleFonts.poppins(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: _textTertiary,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoading() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            // -------------------------------------------------------------
-            // Avatar + nombre + email
-            // -------------------------------------------------------------
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 26,
-                  backgroundImage: NetworkImage(vendedor.urlAvatar),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        vendedor.nombre,
-                        style: GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        vendedor.email,
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          color: Colors.black54,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE2E8F0),
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
-
-            const SizedBox(height: 20),
-
-            // -------------------------------------------------------------
-            // Donut Chart
-            // -------------------------------------------------------------
-            Row(
-              children: [
-                SizedBox(
-                  height: 140,
-                  width: 140,
-                  child: PieChart(
-                    PieChartData(
-                      centerSpaceRadius: 40,
-                      sectionsSpace: 2,
-                      sections: [
-                        PieChartSectionData(
-                          color: Colors.blue,
-                          value: abiertos.toDouble(),
-                          title: "",
-                          radius: 30,
-                        ),
-                        PieChartSectionData(
-                          color: const Color.fromARGB(255, 207, 206, 206),
-                          value: cerrados.toDouble(),
-                          title: "",
-                          radius: 30,
-                        ),
-                      ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 100,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE2E8F0),
+                      borderRadius: BorderRadius.circular(6),
                     ),
                   ),
-                ),
-
-                const SizedBox(width: 20),
-
-                // -------------------------------------------------------------
-                // Leyenda
-                // -------------------------------------------------------------
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _LegendItem(
-                        color: Colors.blue,
-                        label: "ABIERTOS",
-                        value: abiertos,
-                      ),
-                      const SizedBox(height: 12),
-                      _LegendItem(
-                        color: const Color.fromARGB(255, 207, 206, 206),
-                        label: "CERRADOS",
-                        value: cerrados,
-                      ),
-                    ],
+                  const SizedBox(height: 6),
+                  Container(
+                    width: 140,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE2E8F0),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  //////////////////////////////////////////////////////////////////////////////
-  // 🟡 TARJETA DE CARGA
-  //////////////////////////////////////////////////////////////////////////////
-
-  Widget _buildLoadingCard() {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 10),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-            color: Colors.black.withOpacity(0.08),
+        const SizedBox(height: 12),
+        const Divider(height: 1, color: _border),
+        const SizedBox(height: 16),
+        const Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2, color: _primary),
           ),
-        ],
-      ),
-      child: const Center(child: CircularProgressIndicator()),
+        ),
+      ],
     );
   }
 
-  //////////////////////////////////////////////////////////////////////////////
-  // 🔴 TARJETA DE ERROR
-  //////////////////////////////////////////////////////////////////////////////
-
-  Widget _buildErrorCard(String message) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      margin: const EdgeInsets.symmetric(vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.red.shade50,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Text(
-        "Error: $message",
-        style: GoogleFonts.poppins(
-          color: Colors.red,
-          fontWeight: FontWeight.bold,
+  Widget _buildError() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: _errorLight,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(Icons.wifi_off_rounded, color: _error, size: 20),
         ),
-      ),
+        const SizedBox(height: 8),
+        Text(
+          'Error al cargar',
+          style: GoogleFonts.poppins(fontSize: 12, color: _error),
+        ),
+      ],
     );
   }
 }
 
-//////////////////////////////////////////////////////////////////////////////
-// 🔹 WIDGET LEYENDA
-//////////////////////////////////////////////////////////////////////////////
-
-class _LegendItem extends StatelessWidget {
-  final Color color;
+// ─────────────────────────────────────────────
+//  Stat pill
+// ─────────────────────────────────────────────
+class _StatPill extends StatelessWidget {
   final String label;
   final int value;
+  final Color color;
+  final Color bg;
 
-  const _LegendItem({
-    required this.color,
+  const _StatPill({
     required this.label,
     required this.value,
+    required this.color,
+    required this.bg,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 14,
-          height: 14,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(3),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: color,
+            ),
           ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          label,
-          style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500),
-        ),
-        const Spacer(),
-        Text(
-          value.toString(),
-          style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.bold),
-        ),
-      ],
+          const Spacer(),
+          Text(
+            '$value',
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

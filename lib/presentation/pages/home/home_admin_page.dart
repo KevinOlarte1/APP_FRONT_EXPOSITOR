@@ -1,5 +1,7 @@
-import 'package:expositor_app/core/session/session.dart';
+import 'dart:ui' show lerpDouble;
+
 import 'package:expositor_app/data/models/vendedor.dart';
+import 'package:expositor_app/data/services/auth_service.dart';
 import 'package:expositor_app/data/services/vendedor_service.dart';
 import 'package:expositor_app/presentation/pages/admin/cliente/cliente_page.dart';
 import 'package:expositor_app/presentation/pages/admin/dashboard_admin_page.dart';
@@ -8,10 +10,6 @@ import 'package:expositor_app/presentation/pages/login/login_page.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// HomeAdminPage mejorado con:
-/// - Desktop: Sidebar con nombre de vendedor + icono, desplegable/contraible
-/// - Tablet/Móvil: Bottom navigation + AppBar con info del vendedor
-/// - Botón de logout en ambos layouts
 class HomeAdminPage extends StatefulWidget {
   const HomeAdminPage({super.key});
 
@@ -31,10 +29,15 @@ class _HomeAdminPageState extends State<HomeAdminPage>
   int _selectedIndex = 0;
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
+  late final List<_NavItem> _navItems;
+  final _clientesKey = GlobalKey<ClientesPageState>();
 
-  // Para el sidebar en desktop
-  bool _sidebarExpanded = true;
-  bool _showSidebarText = true;
+  // Sidebar: 0.0 = contraído (80px), 1.0 = expandido (280px)
+  late AnimationController _sidebarController;
+
+  bool get _sidebarExpanded => _sidebarController.value > 0.5;
+  bool get _showSidebarText => _sidebarController.value > 0.7;
+  double get _sidebarWidth => lerpDouble(80, 280, _sidebarController.value)!;
 
   @override
   void initState() {
@@ -47,12 +50,36 @@ class _HomeAdminPageState extends State<HomeAdminPage>
       parent: _fadeController,
       curve: Curves.easeOut,
     );
+    _sidebarController = AnimationController(
+      duration: const Duration(milliseconds: 220),
+      vsync: this,
+      value: 1.0, // empieza expandido
+    )..addListener(() => setState(() {}));
+
+    _navItems = [
+      _NavItem(
+        icon: Icons.dashboard_outlined,
+        activeIcon: Icons.dashboard_rounded,
+        label: 'Dashboard',
+      ),
+      _NavItem(
+        icon: Icons.people_outline_rounded,
+        activeIcon: Icons.people_rounded,
+        label: 'Clientes',
+      ),
+      _NavItem(
+        icon: Icons.settings_outlined,
+        activeIcon: Icons.settings_rounded,
+        label: 'Configuración',
+      ),
+    ];
     _loadMe();
   }
 
   @override
   void dispose() {
     _fadeController.dispose();
+    _sidebarController.dispose();
     super.dispose();
   }
 
@@ -94,83 +121,34 @@ class _HomeAdminPageState extends State<HomeAdminPage>
     }
   }
 
-  Future<void> _toggleSidebar() async {
-    if (_sidebarExpanded) {
-      // Primero ocultamos texto, luego cerramos
-      setState(() {
-        _showSidebarText = false;
-      });
-
-      await Future.delayed(const Duration(milliseconds: 80));
-
-      if (!mounted) return;
-      setState(() {
-        _sidebarExpanded = false;
-      });
+  void _toggleSidebar() {
+    if (_sidebarController.value == 1.0) {
+      _sidebarController.reverse();
     } else {
-      // Primero abrimos ancho, luego mostramos texto
-      setState(() {
-        _sidebarExpanded = true;
-      });
-
-      await Future.delayed(const Duration(milliseconds: 170));
-
-      if (!mounted) return;
-      setState(() {
-        _showSidebarText = true;
-      });
+      _sidebarController.forward();
     }
   }
 
   void _onItemTapped(int index) {
     if (index == _selectedIndex) return;
-
     setState(() => _selectedIndex = index);
-    /*
-    _pageController.animateToPage(
-      index,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOutCubic,
-    ); */
+    // Refresca clientes al volver al tab para mostrar cambios desde Configuración
+    if (index == 1) {
+      _clientesKey.currentState?.refresh();
+    }
   }
 
-  /// Función de logout - ¡Personaliza esta función!
-  void _onLogout() {
-    Session.clear();
+  Future<void> _onLogout() async {
+    await AuthService.logout();
+    if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const LoginPage()),
       (route) => false,
     );
-    // TODO: Implementa tu lógica de logout aquí
-    // Ejemplo:
-    // await AuthService.logout();
-    // Navigator.of(context).pushReplacementNamed('/login');
   }
-
-  List<_NavItem> get _navItems => [
-    _NavItem(
-      icon: Icons.dashboard_outlined,
-      activeIcon: Icons.dashboard_rounded,
-      label: 'Dashboard',
-    ),
-    _NavItem(
-      icon: Icons.people_outline_rounded,
-      activeIcon: Icons.people_rounded,
-      label: 'Clientes',
-    ),
-    _NavItem(
-      icon: Icons.settings_outlined,
-      activeIcon: Icons.settings_rounded,
-      label: 'Configuración',
-    ),
-  ];
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final bool isDesktop = width >= 1024;
-
-    // Loading state con shimmer
     if (_loading) {
       return Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
@@ -178,7 +156,6 @@ class _HomeAdminPageState extends State<HomeAdminPage>
       );
     }
 
-    // Error state mejorado
     if (_error || _vendedorActual == null) {
       return Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
@@ -187,14 +164,19 @@ class _HomeAdminPageState extends State<HomeAdminPage>
     }
 
     final vendedor = _vendedorActual!;
-    final name = "${vendedor.nombre} ${vendedor.apellido}";
+    final name = '${vendedor.nombre} ${vendedor.apellido}';
 
-    // Layout responsive: Desktop vs Tablet/Móvil
-    if (isDesktop) {
-      return _buildDesktopLayout(vendedor, name);
-    } else {
-      return _buildMobileTabletLayout(vendedor, name);
-    }
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isDesktop = constraints.maxWidth >= 1024;
+          return isDesktop
+              ? _buildDesktopLayout(vendedor, name)
+              : _buildMobileTabletLayout(vendedor, name);
+        },
+      ),
+    );
   }
 
   // ============== LOADING STATE ==============
@@ -259,38 +241,11 @@ class _HomeAdminPageState extends State<HomeAdminPage>
     double height = 16,
     Color color = const Color(0xFFE2E8F0),
   }) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.5, end: 1.0),
-      duration: const Duration(milliseconds: 800),
-      builder: (context, value, child) {
-        return Container(
-          width: width,
-          height: height,
-          decoration: BoxDecoration(
-            color: color.withOpacity(value * 0.5 + 0.3),
-            borderRadius: BorderRadius.circular(8),
-          ),
-        );
-      },
-      onEnd: () {},
-    );
+    return _ShimmerBox(width: width, height: height, color: color);
   }
 
   Widget _buildShimmerCircle(double size) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.5, end: 1.0),
-      duration: const Duration(milliseconds: 800),
-      builder: (context, value, child) {
-        return Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            color: Colors.white24.withOpacity(value * 0.3 + 0.2),
-            shape: BoxShape.circle,
-          ),
-        );
-      },
-    );
+    return _ShimmerCircle(size: size);
   }
 
   // ============== ERROR STATE ==============
@@ -352,29 +307,19 @@ class _HomeAdminPageState extends State<HomeAdminPage>
 
   // ============== DESKTOP LAYOUT ==============
   Widget _buildDesktopLayout(Vendedor vendedor, String name) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      body: Row(
-        children: [
-          // Sidebar con nombre de vendedor e icono
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            width: _sidebarExpanded ? 280 : 80,
-            child: _buildSidebar(vendedor, name),
-          ),
-
-          // Contenido principal
-          Expanded(
-            child: FadeTransition(
-              opacity: _fadeAnimation,
-              child: IndexedStack(
-                index: _selectedIndex,
-                children: _buildPages(vendedor),
-              ),
+    return Row(
+      children: [
+        SizedBox(width: _sidebarWidth, child: _buildSidebar(vendedor, name)),
+        Expanded(
+          child: FadeTransition(
+            opacity: _fadeAnimation,
+            child: IndexedStack(
+              index: _selectedIndex,
+              children: _buildPages(vendedor),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -403,7 +348,6 @@ class _HomeAdminPageState extends State<HomeAdminPage>
             ),
             child: Row(
               children: [
-                // Avatar del vendedor
                 Container(
                   width: 48,
                   height: 48,
@@ -458,7 +402,7 @@ class _HomeAdminPageState extends State<HomeAdminPage>
 
           const SizedBox(height: 16),
 
-          // Toggle sidebar button
+          // Toggle sidebar
           Padding(
             padding: EdgeInsets.symmetric(
               horizontal: _sidebarExpanded ? 16 : 14,
@@ -482,7 +426,7 @@ class _HomeAdminPageState extends State<HomeAdminPage>
                   children: [
                     AnimatedRotation(
                       turns: _sidebarExpanded ? 0 : 0.5,
-                      duration: const Duration(milliseconds: 200),
+                      duration: const Duration(milliseconds: 220),
                       child: Icon(
                         Icons.chevron_left_rounded,
                         color: Colors.white.withOpacity(0.6),
@@ -515,7 +459,6 @@ class _HomeAdminPageState extends State<HomeAdminPage>
           ...List.generate(_navItems.length, (index) {
             final item = _navItems[index];
             final isSelected = _selectedIndex == index;
-
             return _buildSidebarItem(
               item: item,
               isSelected: isSelected,
@@ -525,7 +468,7 @@ class _HomeAdminPageState extends State<HomeAdminPage>
 
           const Spacer(),
 
-          // Botón de logout
+          // Logout
           Padding(
             padding: EdgeInsets.symmetric(
               horizontal: _sidebarExpanded ? 12 : 14,
@@ -676,7 +619,25 @@ class _HomeAdminPageState extends State<HomeAdminPage>
           children: _buildPages(vendedor),
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: _onItemTapped,
+        backgroundColor: Colors.white,
+        indicatorColor: const Color(0xFF6366F1).withOpacity(0.12),
+        labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
+        destinations: _navItems
+            .map(
+              (item) => NavigationDestination(
+                icon: Icon(item.icon, color: const Color(0xFF94A3B8)),
+                selectedIcon: Icon(
+                  item.activeIcon,
+                  color: const Color(0xFF6366F1),
+                ),
+                label: item.label,
+              ),
+            )
+            .toList(),
+      ),
     );
   }
 
@@ -698,7 +659,6 @@ class _HomeAdminPageState extends State<HomeAdminPage>
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
             children: [
-              // Avatar del vendedor
               Container(
                 width: 44,
                 height: 44,
@@ -720,8 +680,6 @@ class _HomeAdminPageState extends State<HomeAdminPage>
                 ),
               ),
               const SizedBox(width: 12),
-
-              // Info del vendedor
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -747,8 +705,6 @@ class _HomeAdminPageState extends State<HomeAdminPage>
                   ],
                 ),
               ),
-
-              // Botón de logout
               IconButton(
                 onPressed: _onLogout,
                 tooltip: 'Cerrar sesión',
@@ -760,91 +716,6 @@ class _HomeAdminPageState extends State<HomeAdminPage>
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomNav() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(_navItems.length, (index) {
-              final item = _navItems[index];
-              final isSelected = _selectedIndex == index;
-
-              return _buildBottomNavItem(
-                item: item,
-                isSelected: isSelected,
-                onTap: () => _onItemTapped(index),
-              );
-            }),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomNavItem({
-    required _NavItem item,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? const Color(0xFF6366F1).withOpacity(0.1)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              child: Icon(
-                isSelected ? item.activeIcon : item.icon,
-                key: ValueKey(isSelected),
-                color: isSelected
-                    ? const Color(0xFF6366F1)
-                    : const Color(0xFF94A3B8),
-                size: 24,
-              ),
-            ),
-            AnimatedSize(
-              duration: const Duration(milliseconds: 200),
-              child: isSelected
-                  ? Padding(
-                      padding: const EdgeInsets.only(left: 8),
-                      child: Text(
-                        item.label,
-                        style: GoogleFonts.poppins(
-                          color: const Color(0xFF6366F1),
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                      ),
-                    )
-                  : const SizedBox.shrink(),
-            ),
-          ],
         ),
       ),
     );
@@ -863,7 +734,7 @@ class _HomeAdminPageState extends State<HomeAdminPage>
   List<Widget> _buildPages(Vendedor vendedor) {
     return [
       const VendedoresDashboardPage(),
-      const ClientesPage(),
+      ClientesPage(key: _clientesKey),
       ConfigVendedorPage(vendedorActual: vendedor),
     ];
   }
@@ -879,8 +750,106 @@ class _NavItem {
   _NavItem({required this.icon, required this.activeIcon, required this.label});
 }
 
+class _ShimmerBox extends StatefulWidget {
+  final double? width;
+  final double height;
+  final Color color;
+
+  const _ShimmerBox({
+    this.width,
+    this.height = 16,
+    this.color = const Color(0xFFE2E8F0),
+  });
+
+  @override
+  State<_ShimmerBox> createState() => _ShimmerBoxState();
+}
+
+class _ShimmerBoxState extends State<_ShimmerBox>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    )..repeat(reverse: true);
+    _animation = Tween<double>(begin: 0.3, end: 0.8).animate(_controller);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (_, __) => Container(
+        width: widget.width,
+        height: widget.height,
+        decoration: BoxDecoration(
+          color: widget.color.withOpacity(_animation.value),
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+    );
+  }
+}
+
+class _ShimmerCircle extends StatefulWidget {
+  final double size;
+
+  const _ShimmerCircle({required this.size});
+
+  @override
+  State<_ShimmerCircle> createState() => _ShimmerCircleState();
+}
+
+class _ShimmerCircleState extends State<_ShimmerCircle>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    )..repeat(reverse: true);
+    _animation = Tween<double>(begin: 0.2, end: 0.5).animate(_controller);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (_, __) => Container(
+        width: widget.size,
+        height: widget.size,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(_animation.value),
+          shape: BoxShape.circle,
+        ),
+      ),
+    );
+  }
+}
+
 class _AnimatedRetryButton extends StatefulWidget {
-  final VoidCallback onPressed;
+  final Future<void> Function() onPressed;
 
   const _AnimatedRetryButton({required this.onPressed});
 
@@ -908,21 +877,21 @@ class _AnimatedRetryButtonState extends State<_AnimatedRetryButton>
     super.dispose();
   }
 
-  void _handlePress() {
+  Future<void> _handlePress() async {
     if (_isLoading) return;
 
     setState(() => _isLoading = true);
     _controller.repeat();
 
-    widget.onPressed();
-
-    Future.delayed(const Duration(seconds: 3), () {
+    try {
+      await widget.onPressed();
+    } finally {
       if (mounted) {
         setState(() => _isLoading = false);
         _controller.stop();
         _controller.reset();
       }
-    });
+    }
   }
 
   @override

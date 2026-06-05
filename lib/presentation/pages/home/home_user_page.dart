@@ -1,5 +1,7 @@
-import 'package:expositor_app/core/session/session.dart';
+import 'dart:ui' show lerpDouble;
+
 import 'package:expositor_app/data/models/vendedor.dart';
+import 'package:expositor_app/data/services/auth_service.dart';
 import 'package:expositor_app/data/services/vendedor_service.dart';
 import 'package:expositor_app/presentation/pages/admin/cliente/cliente_page.dart';
 import 'package:expositor_app/presentation/pages/admin/config/config_vendedor_admin_page.dart';
@@ -27,10 +29,15 @@ class _HomeUserPageState extends State<HomeUserPage>
   int _selectedIndex = 0;
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
+  late final List<_NavItem> _navItems;
+  final _clientesKey = GlobalKey<ClientesPageState>();
 
-  // Para el sidebar en desktop
-  bool _sidebarExpanded = true;
-  bool _showSidebarText = true;
+  // Sidebar: 0.0 = contraído (80px), 1.0 = expandido (280px)
+  late AnimationController _sidebarController;
+
+  bool get _sidebarExpanded => _sidebarController.value > 0.5;
+  bool get _showSidebarText => _sidebarController.value > 0.7;
+  double get _sidebarWidth => lerpDouble(80, 280, _sidebarController.value)!;
 
   @override
   void initState() {
@@ -43,12 +50,36 @@ class _HomeUserPageState extends State<HomeUserPage>
       parent: _fadeController,
       curve: Curves.easeOut,
     );
+    _sidebarController = AnimationController(
+      duration: const Duration(milliseconds: 220),
+      vsync: this,
+      value: 1.0,
+    )..addListener(() => setState(() {}));
+
+    _navItems = [
+      _NavItem(
+        icon: Icons.person_outline_rounded,
+        activeIcon: Icons.person_rounded,
+        label: 'Mi Perfil',
+      ),
+      _NavItem(
+        icon: Icons.people_outline_rounded,
+        activeIcon: Icons.people_rounded,
+        label: 'Clientes',
+      ),
+      _NavItem(
+        icon: Icons.settings_outlined,
+        activeIcon: Icons.settings_rounded,
+        label: 'Configuración',
+      ),
+    ];
     _loadMe();
   }
 
   @override
   void dispose() {
     _fadeController.dispose();
+    _sidebarController.dispose();
     super.dispose();
   }
 
@@ -61,7 +92,6 @@ class _HomeUserPageState extends State<HomeUserPage>
 
     try {
       final vendedor = await _vendedorService.getMe();
-
       if (!mounted) return;
 
       if (vendedor == null) {
@@ -78,9 +108,9 @@ class _HomeUserPageState extends State<HomeUserPage>
         _loading = false;
         _error = false;
       });
-
       _fadeController.forward();
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('[HomeUserPage] Error cargando perfil: $e\n$st');
       if (!mounted) return;
       setState(() {
         _loading = false;
@@ -90,79 +120,33 @@ class _HomeUserPageState extends State<HomeUserPage>
     }
   }
 
-  Future<void> _toggleSidebar() async {
-    if (_sidebarExpanded) {
-      // Primero ocultamos texto, luego cerramos
-      setState(() {
-        _showSidebarText = false;
-      });
-
-      await Future.delayed(const Duration(milliseconds: 80));
-
-      if (!mounted) return;
-      setState(() {
-        _sidebarExpanded = false;
-      });
+  void _toggleSidebar() {
+    if (_sidebarController.value == 1.0) {
+      _sidebarController.reverse();
     } else {
-      // Primero abrimos ancho, luego mostramos texto
-      setState(() {
-        _sidebarExpanded = true;
-      });
-
-      await Future.delayed(const Duration(milliseconds: 170));
-
-      if (!mounted) return;
-      setState(() {
-        _showSidebarText = true;
-      });
+      _sidebarController.forward();
     }
   }
 
   void _onItemTapped(int index) {
     if (index == _selectedIndex) return;
-
     setState(() => _selectedIndex = index);
-    /*
-    _pageController.animateToPage(
-      index,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOutCubic,
-    ); */
+    if (index == 1) {
+      _clientesKey.currentState?.refresh();
+    }
   }
 
-  /// Función de logout
-  void _onLogout() {
-    Session.clear();
+  Future<void> _onLogout() async {
+    await AuthService.logout();
+    if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const LoginPage()),
       (route) => false,
     );
   }
 
-  List<_NavItem> get _navItems => [
-    _NavItem(
-      icon: Icons.person_outline_rounded,
-      activeIcon: Icons.person_rounded,
-      label: 'Mi Perfil',
-    ),
-    _NavItem(
-      icon: Icons.people_outline_rounded,
-      activeIcon: Icons.people_rounded,
-      label: 'Clientes',
-    ),
-    _NavItem(
-      icon: Icons.settings_outlined,
-      activeIcon: Icons.settings_rounded,
-      label: 'Configuración',
-    ),
-  ];
-
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final bool isDesktop = width >= 1024;
-
-    // Loading state con shimmer
     if (_loading) {
       return Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
@@ -170,7 +154,6 @@ class _HomeUserPageState extends State<HomeUserPage>
       );
     }
 
-    // Error state mejorado
     if (_error || _vendedorActual == null) {
       return Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
@@ -179,14 +162,19 @@ class _HomeUserPageState extends State<HomeUserPage>
     }
 
     final vendedor = _vendedorActual!;
-    final name = "${vendedor.nombre} ${vendedor.apellido}";
+    final name = '${vendedor.nombre} ${vendedor.apellido}';
 
-    // Layout responsive: Desktop vs Tablet/Móvil
-    if (isDesktop) {
-      return _buildDesktopLayout(vendedor, name);
-    } else {
-      return _buildMobileTabletLayout(vendedor, name);
-    }
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isDesktop = constraints.maxWidth >= 1024;
+          return isDesktop
+              ? _buildDesktopLayout(vendedor, name)
+              : _buildMobileTabletLayout(vendedor, name);
+        },
+      ),
+    );
   }
 
   // ============== LOADING STATE ==============
@@ -201,19 +189,19 @@ class _HomeUserPageState extends State<HomeUserPage>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildShimmerBox(width: 200, height: 28),
+                  _ShimmerBox(width: 200, height: 28),
                   const SizedBox(height: 20),
-                  _buildShimmerBox(width: double.infinity, height: 120),
+                  _ShimmerBox(width: double.infinity, height: 120),
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      Expanded(child: _buildShimmerBox(height: 100)),
+                      Expanded(child: _ShimmerBox(height: 100)),
                       const SizedBox(width: 16),
-                      Expanded(child: _buildShimmerBox(height: 100)),
+                      Expanded(child: _ShimmerBox(height: 100)),
                     ],
                   ),
                   const SizedBox(height: 16),
-                  _buildShimmerBox(width: double.infinity, height: 200),
+                  _ShimmerBox(width: double.infinity, height: 200),
                 ],
               ),
             ),
@@ -227,61 +215,22 @@ class _HomeUserPageState extends State<HomeUserPage>
     return Container(
       height: 72,
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: const BoxDecoration(color: Color(0xFF1E1E1E)),
+      decoration: const BoxDecoration(color: Color(0xFF2b2b2b)),
       child: Row(
         children: [
-          _buildShimmerCircle(40),
+          _ShimmerCircle(size: 40),
           const SizedBox(width: 12),
           Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildShimmerBox(width: 80, height: 12, color: Colors.white24),
+              _ShimmerBox(width: 80, height: 12, color: Colors.white24),
               const SizedBox(height: 6),
-              _buildShimmerBox(width: 120, height: 16, color: Colors.white24),
+              _ShimmerBox(width: 120, height: 16, color: Colors.white24),
             ],
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildShimmerBox({
-    double? width,
-    double height = 16,
-    Color color = const Color(0xFFE2E8F0),
-  }) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.5, end: 1.0),
-      duration: const Duration(milliseconds: 800),
-      builder: (context, value, child) {
-        return Container(
-          width: width,
-          height: height,
-          decoration: BoxDecoration(
-            color: color.withOpacity(value * 0.5 + 0.3),
-            borderRadius: BorderRadius.circular(8),
-          ),
-        );
-      },
-      onEnd: () {},
-    );
-  }
-
-  Widget _buildShimmerCircle(double size) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.5, end: 1.0),
-      duration: const Duration(milliseconds: 800),
-      builder: (context, value, child) {
-        return Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            color: Colors.white24.withOpacity(value * 0.3 + 0.2),
-            shape: BoxShape.circle,
-          ),
-        );
-      },
     );
   }
 
@@ -306,11 +255,8 @@ class _HomeUserPageState extends State<HomeUserPage>
                       color: Colors.red.shade50,
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(
-                      Icons.cloud_off_rounded,
-                      size: 48,
-                      color: Colors.red.shade400,
-                    ),
+                    child: Icon(Icons.cloud_off_rounded,
+                        size: 48, color: Colors.red.shade400),
                   ),
                 );
               },
@@ -319,20 +265,18 @@ class _HomeUserPageState extends State<HomeUserPage>
             Text(
               'Algo salió mal',
               style: GoogleFonts.poppins(
-                fontSize: 22,
-                fontWeight: FontWeight.w600,
-                color: const Color(0xFF1E293B),
-              ),
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF1E293B)),
             ),
             const SizedBox(height: 8),
             Text(
               _errorMessage ?? 'No se pudo cargar tu perfil.',
               textAlign: TextAlign.center,
               style: GoogleFonts.poppins(
-                fontSize: 14,
-                color: const Color(0xFF64748B),
-                height: 1.5,
-              ),
+                  fontSize: 14,
+                  color: const Color(0xFF64748B),
+                  height: 1.5),
             ),
             const SizedBox(height: 32),
             _AnimatedRetryButton(onPressed: _loadMe),
@@ -344,29 +288,22 @@ class _HomeUserPageState extends State<HomeUserPage>
 
   // ============== DESKTOP LAYOUT ==============
   Widget _buildDesktopLayout(Vendedor vendedor, String name) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      body: Row(
-        children: [
-          // Sidebar con nombre de vendedor e icono
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            width: _sidebarExpanded ? 280 : 80,
-            child: _buildSidebar(vendedor, name),
-          ),
-
-          // Contenido principal
-          Expanded(
-            child: FadeTransition(
-              opacity: _fadeAnimation,
-              child: IndexedStack(
-                index: _selectedIndex,
-                children: _buildPages(vendedor),
-              ),
+    return Row(
+      children: [
+        SizedBox(
+          width: _sidebarWidth,
+          child: _buildSidebar(vendedor, name),
+        ),
+        Expanded(
+          child: FadeTransition(
+            opacity: _fadeAnimation,
+            child: IndexedStack(
+              index: _selectedIndex,
+              children: _buildPages(vendedor),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -384,7 +321,7 @@ class _HomeUserPageState extends State<HomeUserPage>
       ),
       child: Column(
         children: [
-          // Header con info del vendedor
+          // Header
           Container(
             padding: EdgeInsets.symmetric(
               horizontal: _sidebarExpanded ? 16 : 12,
@@ -395,7 +332,6 @@ class _HomeUserPageState extends State<HomeUserPage>
             ),
             child: Row(
               children: [
-                // Avatar del vendedor
                 Container(
                   width: 48,
                   height: 48,
@@ -409,10 +345,9 @@ class _HomeUserPageState extends State<HomeUserPage>
                     child: Text(
                       _getInitials(name),
                       style: GoogleFonts.poppins(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600),
                     ),
                   ),
                 ),
@@ -422,24 +357,17 @@ class _HomeUserPageState extends State<HomeUserPage>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          name,
-                          style: GoogleFonts.poppins(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        Text(name,
+                            style: GoogleFonts.poppins(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600),
+                            overflow: TextOverflow.ellipsis),
                         const SizedBox(height: 2),
-                        Text(
-                          vendedor.email,
-                          style: GoogleFonts.poppins(
-                            color: Colors.white54,
-                            fontSize: 12,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        Text(vendedor.email,
+                            style: GoogleFonts.poppins(
+                                color: Colors.white54, fontSize: 12),
+                            overflow: TextOverflow.ellipsis),
                       ],
                     ),
                   ),
@@ -450,10 +378,10 @@ class _HomeUserPageState extends State<HomeUserPage>
 
           const SizedBox(height: 16),
 
-          // Toggle sidebar button
+          // Toggle
           Padding(
             padding: EdgeInsets.symmetric(
-              horizontal: _showSidebarText ? 16 : 14,
+              horizontal: _sidebarExpanded ? 16 : 14,
             ),
             child: InkWell(
               onTap: _toggleSidebar,
@@ -461,34 +389,31 @@ class _HomeUserPageState extends State<HomeUserPage>
               child: Container(
                 padding: EdgeInsets.symmetric(
                   vertical: 10,
-                  horizontal: _showSidebarText ? 12 : 0,
+                  horizontal: _sidebarExpanded ? 12 : 0,
                 ),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.05),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
-                  mainAxisAlignment: _showSidebarText
+                  mainAxisAlignment: _sidebarExpanded
                       ? MainAxisAlignment.start
                       : MainAxisAlignment.center,
                   children: [
                     AnimatedRotation(
-                      turns: _showSidebarText ? 0 : 0.5,
-                      duration: const Duration(milliseconds: 200),
-                      child: Icon(
-                        Icons.chevron_left_rounded,
-                        color: Colors.white.withOpacity(0.6),
-                        size: 22,
-                      ),
+                      turns: _sidebarExpanded ? 0 : 0.5,
+                      duration: const Duration(milliseconds: 220),
+                      child: Icon(Icons.chevron_left_rounded,
+                          color: Colors.white.withOpacity(0.6), size: 22),
                     ),
                     if (_showSidebarText) ...[
                       const SizedBox(width: 10),
-                      Text(
-                        'Contraer menú',
-                        style: GoogleFonts.poppins(
-                          color: Colors.white60,
-                          fontSize: 13,
-                        ),
+                      Expanded(
+                        child: Text('Contraer menú',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                                color: Colors.white60, fontSize: 13)),
                       ),
                     ],
                   ],
@@ -499,11 +424,10 @@ class _HomeUserPageState extends State<HomeUserPage>
 
           const SizedBox(height: 16),
 
-          // Navigation items
+          // Nav items
           ...List.generate(_navItems.length, (index) {
             final item = _navItems[index];
             final isSelected = _selectedIndex == index;
-
             return _buildSidebarItem(
               item: item,
               isSelected: isSelected,
@@ -513,7 +437,7 @@ class _HomeUserPageState extends State<HomeUserPage>
 
           const Spacer(),
 
-          // Botón de logout
+          // Logout
           Padding(
             padding: EdgeInsets.symmetric(
               horizontal: _sidebarExpanded ? 12 : 14,
@@ -536,7 +460,7 @@ class _HomeUserPageState extends State<HomeUserPage>
           borderRadius: BorderRadius.circular(12),
           child: Container(
             padding: EdgeInsets.symmetric(
-              horizontal: _showSidebarText ? 16 : 12,
+              horizontal: _sidebarExpanded ? 16 : 12,
               vertical: 14,
             ),
             decoration: BoxDecoration(
@@ -545,24 +469,21 @@ class _HomeUserPageState extends State<HomeUserPage>
               border: Border.all(color: Colors.red.withOpacity(0.2)),
             ),
             child: Row(
-              mainAxisAlignment: _showSidebarText
+              mainAxisAlignment: _sidebarExpanded
                   ? MainAxisAlignment.start
                   : MainAxisAlignment.center,
               children: [
-                Icon(
-                  Icons.logout_rounded,
-                  color: Colors.red.shade300,
-                  size: 22,
-                ),
+                Icon(Icons.logout_rounded, color: Colors.red.shade300, size: 22),
                 if (_showSidebarText) ...[
                   const SizedBox(width: 14),
-                  Text(
-                    'Cerrar sesión',
-                    style: GoogleFonts.poppins(
-                      color: Colors.red.shade300,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 14,
-                    ),
+                  Expanded(
+                    child: Text('Cerrar sesión',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                            color: Colors.red.shade300,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 14)),
                   ),
                 ],
               ],
@@ -580,11 +501,11 @@ class _HomeUserPageState extends State<HomeUserPage>
   }) {
     return Padding(
       padding: EdgeInsets.symmetric(
-        horizontal: _showSidebarText ? 12 : 14,
+        horizontal: _sidebarExpanded ? 12 : 14,
         vertical: 4,
       ),
       child: Tooltip(
-        message: _showSidebarText ? '' : item.label,
+        message: _sidebarExpanded ? '' : item.label,
         child: Material(
           color: Colors.transparent,
           child: InkWell(
@@ -593,7 +514,7 @@ class _HomeUserPageState extends State<HomeUserPage>
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               padding: EdgeInsets.symmetric(
-                horizontal: _showSidebarText ? 16 : 12,
+                horizontal: _sidebarExpanded ? 16 : 12,
                 vertical: 14,
               ),
               decoration: BoxDecoration(
@@ -606,7 +527,7 @@ class _HomeUserPageState extends State<HomeUserPage>
                     : null,
               ),
               child: Row(
-                mainAxisAlignment: _showSidebarText
+                mainAxisAlignment: _sidebarExpanded
                     ? MainAxisAlignment.start
                     : MainAxisAlignment.center,
                 children: [
@@ -621,15 +542,16 @@ class _HomeUserPageState extends State<HomeUserPage>
                   ),
                   if (_showSidebarText) ...[
                     const SizedBox(width: 14),
-                    Text(
-                      item.label,
-                      style: GoogleFonts.poppins(
-                        color: isSelected ? Colors.white : Colors.white60,
-                        fontWeight: isSelected
-                            ? FontWeight.w600
-                            : FontWeight.w500,
-                        fontSize: 14,
-                      ),
+                    Expanded(
+                      child: Text(item.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(
+                              color: isSelected ? Colors.white : Colors.white60,
+                              fontWeight: isSelected
+                                  ? FontWeight.w600
+                                  : FontWeight.w500,
+                              fontSize: 14)),
                     ),
                   ],
                 ],
@@ -656,7 +578,21 @@ class _HomeUserPageState extends State<HomeUserPage>
           children: _buildPages(vendedor),
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: _onItemTapped,
+        backgroundColor: Colors.white,
+        indicatorColor: const Color(0xFF6366F1).withOpacity(0.12),
+        labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
+        destinations: _navItems
+            .map((item) => NavigationDestination(
+                  icon: Icon(item.icon, color: const Color(0xFF94A3B8)),
+                  selectedIcon:
+                      Icon(item.activeIcon, color: const Color(0xFF6366F1)),
+                  label: item.label,
+                ))
+            .toList(),
+      ),
     );
   }
 
@@ -678,7 +614,6 @@ class _HomeUserPageState extends State<HomeUserPage>
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
             children: [
-              // Avatar del vendedor
               Container(
                 width: 44,
                 height: 44,
@@ -692,51 +627,36 @@ class _HomeUserPageState extends State<HomeUserPage>
                   child: Text(
                     _getInitials(name),
                     style: GoogleFonts.poppins(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
               const SizedBox(width: 12),
-
-              // Info del vendedor
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      name,
-                      style: GoogleFonts.poppins(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      vendedor.email,
-                      style: GoogleFonts.poppins(
-                        color: Colors.white54,
-                        fontSize: 12,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    Text(name,
+                        style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600),
+                        overflow: TextOverflow.ellipsis),
+                    Text(vendedor.email,
+                        style: GoogleFonts.poppins(
+                            color: Colors.white54, fontSize: 12),
+                        overflow: TextOverflow.ellipsis),
                   ],
                 ),
               ),
-
-              // Botón de logout
               IconButton(
                 onPressed: _onLogout,
                 tooltip: 'Cerrar sesión',
-                icon: Icon(
-                  Icons.logout_rounded,
-                  color: Colors.red.shade300,
-                  size: 24,
-                ),
+                icon: Icon(Icons.logout_rounded,
+                    color: Colors.red.shade300, size: 24),
               ),
             ],
           ),
@@ -745,105 +665,18 @@ class _HomeUserPageState extends State<HomeUserPage>
     );
   }
 
-  Widget _buildBottomNav() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(_navItems.length, (index) {
-              final item = _navItems[index];
-              final isSelected = _selectedIndex == index;
-
-              return _buildBottomNavItem(
-                item: item,
-                isSelected: isSelected,
-                onTap: () => _onItemTapped(index),
-              );
-            }),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomNavItem({
-    required _NavItem item,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? const Color(0xFF6366F1).withOpacity(0.1)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              child: Icon(
-                isSelected ? item.activeIcon : item.icon,
-                key: ValueKey(isSelected),
-                color: isSelected
-                    ? const Color(0xFF6366F1)
-                    : const Color(0xFF94A3B8),
-                size: 24,
-              ),
-            ),
-            AnimatedSize(
-              duration: const Duration(milliseconds: 200),
-              child: isSelected
-                  ? Padding(
-                      padding: const EdgeInsets.only(left: 8),
-                      child: Text(
-                        item.label,
-                        style: GoogleFonts.poppins(
-                          color: const Color(0xFF6366F1),
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                      ),
-                    )
-                  : const SizedBox.shrink(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   String _getInitials(String name) {
     final parts = name.trim().split(' ');
-    if (parts.length >= 2) {
-      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    } else if (parts.isNotEmpty && parts[0].isNotEmpty) {
+    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    if (parts.isNotEmpty && parts[0].isNotEmpty)
       return parts[0][0].toUpperCase();
-    }
     return 'U';
   }
 
   List<Widget> _buildPages(Vendedor vendedor) {
     return [
       VendedorDetailPage(vendedor: vendedor, title: 0),
-      const ClientesPage(),
+      ClientesPage(key: _clientesKey),
       ConfigVendedorPage(vendedorActual: vendedor),
     ];
   }
@@ -860,8 +693,7 @@ class _NavItem {
 }
 
 class _AnimatedRetryButton extends StatefulWidget {
-  final VoidCallback onPressed;
-
+  final Future<void> Function() onPressed;
   const _AnimatedRetryButton({required this.onPressed});
 
   @override
@@ -877,9 +709,7 @@ class _AnimatedRetryButtonState extends State<_AnimatedRetryButton>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 1000),
-      vsync: this,
-    );
+        duration: const Duration(milliseconds: 1000), vsync: this);
   }
 
   @override
@@ -888,21 +718,19 @@ class _AnimatedRetryButtonState extends State<_AnimatedRetryButton>
     super.dispose();
   }
 
-  void _handlePress() {
+  Future<void> _handlePress() async {
     if (_isLoading) return;
-
     setState(() => _isLoading = true);
     _controller.repeat();
-
-    widget.onPressed();
-
-    Future.delayed(const Duration(seconds: 3), () {
+    try {
+      await widget.onPressed();
+    } finally {
       if (mounted) {
         setState(() => _isLoading = false);
         _controller.stop();
         _controller.reset();
       }
-    });
+    }
   }
 
   @override
@@ -913,7 +741,8 @@ class _AnimatedRetryButtonState extends State<_AnimatedRetryButton>
         backgroundColor: const Color(0xFF6366F1),
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         elevation: 0,
       ),
       child: Row(
@@ -930,11 +759,106 @@ class _AnimatedRetryButtonState extends State<_AnimatedRetryButton>
           Text(
             _isLoading ? 'Cargando...' : 'Reintentar',
             style: GoogleFonts.poppins(
-              fontWeight: FontWeight.w600,
-              fontSize: 16,
-            ),
+                fontWeight: FontWeight.w600, fontSize: 16),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ============== SHIMMER WIDGETS ==============
+
+class _ShimmerBox extends StatefulWidget {
+  final double? width;
+  final double height;
+  final Color color;
+
+  const _ShimmerBox({
+    this.width,
+    required this.height,
+    this.color = const Color(0xFFE2E8F0),
+  });
+
+  @override
+  State<_ShimmerBox> createState() => _ShimmerBoxState();
+}
+
+class _ShimmerBoxState extends State<_ShimmerBox>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+        duration: const Duration(milliseconds: 800), vsync: this)
+      ..repeat(reverse: true);
+    _animation = Tween<double>(begin: 0.3, end: 0.8).animate(_controller);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (_, __) => Container(
+        width: widget.width,
+        height: widget.height,
+        decoration: BoxDecoration(
+          color: widget.color.withOpacity(_animation.value),
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+    );
+  }
+}
+
+class _ShimmerCircle extends StatefulWidget {
+  final double size;
+  const _ShimmerCircle({required this.size});
+
+  @override
+  State<_ShimmerCircle> createState() => _ShimmerCircleState();
+}
+
+class _ShimmerCircleState extends State<_ShimmerCircle>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+        duration: const Duration(milliseconds: 800), vsync: this)
+      ..repeat(reverse: true);
+    _animation = Tween<double>(begin: 0.2, end: 0.5).animate(_controller);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (_, __) => Container(
+        width: widget.size,
+        height: widget.size,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(_animation.value),
+          shape: BoxShape.circle,
+        ),
       ),
     );
   }

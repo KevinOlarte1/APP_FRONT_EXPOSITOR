@@ -11,23 +11,38 @@ import 'package:intl_phone_field/intl_phone_field.dart';
 
 import 'package:expositor_app/core/session/session.dart';
 
+// ─────────────────────────────────────────────
+//  Design tokens
+// ─────────────────────────────────────────────
+const _bg = Color(0xFFF8FAFC);
+const _surface = Color(0xFFFFFFFF);
+const _border = Color(0xFFE2E8F0);
+const _primary = Color(0xFF2563EB);
+const _primaryLight = Color(0xFFEFF6FF);
+const _textPrimary = Color(0xFF0F172A);
+const _textSecondary = Color(0xFF64748B);
+const _textTertiary = Color(0xFF94A3B8);
+const _success = Color(0xFF22C55E);
+const _successLight = Color(0xFFF0FDF4);
+const _error = Color(0xFFEF4444);
+
 class ClientesPage extends StatefulWidget {
   const ClientesPage({super.key});
 
   @override
-  State<ClientesPage> createState() => _ClientesPageState();
+  State<ClientesPage> createState() => ClientesPageState();
 }
 
-class _ClientesPageState extends State<ClientesPage>
+class ClientesPageState extends State<ClientesPage>
     with SingleTickerProviderStateMixin {
+  void refresh() => _loadAll();
+
   final ClienteService _clienteService = ClienteService();
   final VendedorService _vendedorService = VendedorService();
-
   final bool _isAdmin = Session.isAdmin;
 
   List<Cliente> allClients = [];
   List<Cliente> filteredClients = [];
-
   List<Vendedor> vendedores = [];
   Vendedor? selectedVendedor;
 
@@ -41,7 +56,7 @@ class _ClientesPageState extends State<ClientesPage>
   void initState() {
     super.initState();
     _fadeController = AnimationController(
-      duration: const Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 350),
       vsync: this,
     );
     _fadeAnimation = CurvedAnimation(
@@ -60,18 +75,26 @@ class _ClientesPageState extends State<ClientesPage>
 
   Future<void> _loadAll() async {
     setState(() => _isLoading = true);
+    _fadeController.reset();
 
     final lClientes = await _clienteService.getAllClientes();
 
     if (_isAdmin) {
       final lVendedores = await _vendedorService.getVendedores();
+      if (!mounted) return;
+      // Remap selectedVendedor a la nueva instancia de la lista (compara por id)
+      final prevId = selectedVendedor?.id;
       setState(() {
         allClients = lClientes;
         filteredClients = lClientes;
         vendedores = lVendedores;
+        selectedVendedor = prevId != null
+            ? lVendedores.where((v) => v.id == prevId).firstOrNull
+            : null;
         _isLoading = false;
       });
     } else {
+      if (!mounted) return;
       setState(() {
         allClients = lClientes;
         filteredClients = lClientes;
@@ -80,50 +103,36 @@ class _ClientesPageState extends State<ClientesPage>
         _isLoading = false;
       });
     }
-
     _fadeController.forward();
   }
 
   void _applyFilters() {
     final q = _searchCtrl.text.toLowerCase().trim();
-
-    List<Cliente> baseList;
-
-    if (_isAdmin && selectedVendedor != null) {
-      baseList = allClients
-          .where((c) => c.idVendedor == selectedVendedor!.id)
-          .toList();
-    } else {
-      baseList = List.of(allClients);
-    }
+    List<Cliente> base = _isAdmin && selectedVendedor != null
+        ? allClients.where((c) => c.idVendedor == selectedVendedor!.id).toList()
+        : List.of(allClients);
 
     if (q.isEmpty) {
-      setState(() => filteredClients = baseList);
+      setState(() => filteredClients = base);
       return;
     }
-
     setState(() {
-      filteredClients = baseList.where((c) {
-        final nombre = c.nombre.toLowerCase();
-        final cif = c.cif.toLowerCase();
-        final email = c.email.toLowerCase();
-        return nombre.contains(q) || cif.contains(q) || email.contains(q);
+      filteredClients = base.where((c) {
+        return c.nombre.toLowerCase().contains(q) ||
+            c.cif.toLowerCase().contains(q) ||
+            c.email.toLowerCase().contains(q);
       }).toList();
     });
   }
 
-  void _filterByVendedor(Vendedor? vendedor) {
-    setState(() => selectedVendedor = vendedor);
-    _applyFilters();
-  }
-
-  void _filterBySearch(String q) {
+  void _filterByVendedor(Vendedor? v) {
+    setState(() => selectedVendedor = v);
     _applyFilters();
   }
 
   String _getNombreVendedor(int? idVendedor) {
     if (idVendedor == null) return 'Sin asignar';
-    final vendedor = vendedores.firstWhere(
+    final v = vendedores.firstWhere(
       (v) => v.id == idVendedor,
       orElse: () => Vendedor(
         id: 0,
@@ -133,1065 +142,1001 @@ class _ClientesPageState extends State<ClientesPage>
         role: '',
       ),
     );
-    return '${vendedor.nombre} ${vendedor.apellido}'.trim();
+    return '${v.nombre} ${v.apellido}'.trim();
   }
 
+  void _goToCliente(Cliente c) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => ClienteDetailsPage(cliente: c)),
+    );
+    await _loadAll();
+    _applyFilters();
+  }
+
+  int _crossAxisCount(double w) {
+    if (w > 1400) return 4;
+    if (w > 960) return 3;
+    if (w > 600) return 2;
+    return 1;
+  }
+
+  // ─── BUILD ──────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7FB),
-      body: _isLoading ? _buildLoadingState() : _buildContent(),
+      backgroundColor: _bg,
+      body: SafeArea(child: _isLoading ? _buildSkeleton() : _buildBody()),
     );
   }
 
-  // ============== LOADING STATE ==============
-  Widget _buildLoadingState() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1200),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildShimmerBox(width: double.infinity, height: 120),
-              const SizedBox(height: 20),
-              _buildShimmerBox(width: double.infinity, height: 70),
-              const SizedBox(height: 20),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  int crossAxisCount = 1;
-                  if (constraints.maxWidth > 900) {
-                    crossAxisCount = 3;
-                  } else if (constraints.maxWidth > 600) {
-                    crossAxisCount = 2;
-                  }
-                  return Wrap(
-                    spacing: 16,
-                    runSpacing: 16,
-                    children: List.generate(
-                      6,
-                      (_) => SizedBox(
-                        width:
-                            (constraints.maxWidth - 16 * (crossAxisCount - 1)) /
-                            crossAxisCount,
-                        child: _buildShimmerBox(height: 180),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildShimmerBox({double? width, double height = 16}) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.4, end: 1.0),
-      duration: const Duration(milliseconds: 900),
-      builder: (context, value, child) {
-        return Container(
-          width: width,
-          height: height,
-          decoration: BoxDecoration(
-            color: const Color(0xFFE2E8F0).withOpacity(value * 0.5 + 0.3),
-            borderRadius: BorderRadius.circular(16),
+  // ─── SKELETON ───────────────────────────────
+  Widget _buildSkeleton() {
+    return LayoutBuilder(
+      builder: (_, constraints) {
+        final pad = constraints.maxWidth < 600 ? 16.0 : 28.0;
+        final cols = _crossAxisCount(constraints.maxWidth);
+        return SingleChildScrollView(
+          padding: EdgeInsets.all(pad),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1280),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Page header skeleton
+                Row(
+                  children: [
+                    _Sk(width: 140, height: 28),
+                    const Spacer(),
+                    _Sk(width: 36, height: 36, radius: 10),
+                    const SizedBox(width: 10),
+                    _Sk(width: 130, height: 36, radius: 10),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                _Sk(width: 200, height: 16),
+                const SizedBox(height: 24),
+                // Search bar skeleton
+                _Sk(width: double.infinity, height: 44, radius: 12),
+                const SizedBox(height: 20),
+                // Stats row
+                Row(
+                  children: [
+                    _Sk(width: 80, height: 32, radius: 8),
+                    const SizedBox(width: 10),
+                    _Sk(width: 80, height: 32, radius: 8),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                // Cards
+                Wrap(
+                  spacing: 14,
+                  runSpacing: 14,
+                  children: List.generate(cols * 2, (_) {
+                    final cardW =
+                        (constraints.maxWidth - pad * 2 - 14 * (cols - 1)) /
+                        cols;
+                    return _Sk(width: cardW, height: cols == 1 ? 76 : 180);
+                  }),
+                ),
+              ],
+            ),
           ),
         );
       },
     );
   }
 
-  // ============== MAIN CONTENT ==============
-  Widget _buildContent() {
+  // ─── BODY ───────────────────────────────────
+  Widget _buildBody() {
     return FadeTransition(
       opacity: _fadeAnimation,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1200),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header Card
-                _buildHeaderCard(),
-                const SizedBox(height: 20),
-
-                // Filtros
-                _buildFiltersCard(),
-                const SizedBox(height: 20),
-
-                // Grid de clientes
-                _buildClientsGrid(),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ============== HEADER CARD ==============
-  Widget _buildHeaderCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFE8EDF3)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 28,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
       child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isSmall = constraints.maxWidth < 600;
-
-          if (isSmall) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+        builder: (_, constraints) {
+          final pad = constraints.maxWidth < 600 ? 16.0 : 28.0;
+          final isMobile = constraints.maxWidth < 600;
+          return SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(pad, 24, pad, 32),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1280),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildHeaderIcon(),
-                    const SizedBox(width: 16),
-                    Expanded(child: _buildHeaderTitle()),
+                    _buildPageHeader(isMobile),
+                    const SizedBox(height: 20),
+                    _buildToolbar(isMobile),
+                    const SizedBox(height: 16),
+                    _buildStatsRow(),
+                    const SizedBox(height: 20),
+                    _buildClientList(constraints.maxWidth - pad * 2),
                   ],
                 ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildStatCard(
-                        'Total',
-                        allClients.length,
-                        Icons.people_rounded,
-                        const Color(0xFF3B82F6),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildStatCard(
-                        'Filtrados',
-                        filteredClients.length,
-                        Icons.filter_list_rounded,
-                        const Color(0xFF10B981),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    _buildRefreshButton(),
-                    const SizedBox(width: 12),
-                    Expanded(child: _buildCreateButton()),
-                  ],
-                ),
-              ],
-            );
-          }
-
-          return Row(
-            children: [
-              _buildHeaderIcon(),
-              const SizedBox(width: 16),
-              Expanded(child: _buildHeaderTitle()),
-              const SizedBox(width: 20),
-              _buildStatCard(
-                'Total',
-                allClients.length,
-                Icons.people_rounded,
-                const Color(0xFF3B82F6),
               ),
-              const SizedBox(width: 12),
-              _buildStatCard(
-                'Filtrados',
-                filteredClients.length,
-                Icons.filter_list_rounded,
-                const Color(0xFF10B981),
-              ),
-              const SizedBox(width: 20),
-              _buildRefreshButton(),
-              const SizedBox(width: 12),
-              _buildCreateButton(),
-            ],
+            ),
           );
         },
       ),
     );
   }
 
-  // Agrega este nuevo metodo despues de _buildStatCard():
-  Widget _buildRefreshButton() {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFFF9FAFB),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: _isLoading ? null : _loadAll,
-          borderRadius: BorderRadius.circular(14),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: _isLoading
-                ? const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      color: Color(0xFF6B7280),
-                    ),
-                  )
-                : const Icon(
-                    Icons.refresh_rounded,
-                    color: Color(0xFF6B7280),
-                    size: 22,
-                  ),
+  // ─── PAGE HEADER ────────────────────────────
+  Widget _buildPageHeader(bool isMobile) {
+    if (isMobile) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Clientes', style: _titleStyle),
+          const SizedBox(height: 4),
+          Text(
+            '${allClients.length} clientes registrados',
+            style: GoogleFonts.poppins(fontSize: 13, color: _textSecondary),
           ),
-        ),
-      ),
-    );
-  }
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              _RefreshBtn(loading: _isLoading, onTap: _loadAll),
+              const SizedBox(width: 10),
+              Expanded(child: _NewClientBtn(onTap: _irCrearCliente)),
+            ],
+          ),
+        ],
+      );
+    }
 
-  Widget _buildHeaderIcon() {
-    return Container(
-      width: 56,
-      height: 56,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF3B82F6), Color(0xFF1D4ED8)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      alignment: Alignment.center,
-      child: const Icon(
-        Icons.people_alt_rounded,
-        color: Colors.white,
-        size: 28,
-      ),
-    );
-  }
-
-  Widget _buildHeaderTitle() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(
-          'Clientes',
-          style: GoogleFonts.poppins(
-            fontSize: 24,
-            fontWeight: FontWeight.w700,
-            color: const Color(0xFF1F2937),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Clientes', style: _titleStyle),
+              const SizedBox(height: 4),
+              Text(
+                '${allClients.length} clientes registrados',
+                style: GoogleFonts.poppins(fontSize: 13, color: _textSecondary),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          'Gestiona y visualiza todos tus clientes',
-          style: GoogleFonts.poppins(
-            fontSize: 14,
-            color: const Color(0xFF6B7280),
+        _RefreshBtn(loading: _isLoading, onTap: _loadAll),
+        const SizedBox(width: 10),
+        _NewClientBtn(onTap: _irCrearCliente),
+      ],
+    );
+  }
+
+  // ─── TOOLBAR ────────────────────────────────
+  Widget _buildToolbar(bool isMobile) {
+    final searchField = _SearchField(
+      controller: _searchCtrl,
+      onChanged: (_) => _applyFilters(),
+    );
+
+    if (!_isAdmin || vendedores.isEmpty) return searchField;
+
+    if (isMobile) {
+      return Column(
+        children: [
+          searchField,
+          const SizedBox(height: 10),
+          _VendedorFilter(
+            vendedores: vendedores,
+            selected: selectedVendedor,
+            onChanged: _filterByVendedor,
+          ),
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        Expanded(flex: 3, child: searchField),
+        const SizedBox(width: 12),
+        Expanded(
+          flex: 2,
+          child: _VendedorFilter(
+            vendedores: vendedores,
+            selected: selectedVendedor,
+            onChanged: _filterByVendedor,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildStatCard(String label, int value, IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withOpacity(0.2)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '$value',
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: color,
-                ),
-              ),
-              Text(
-                label,
-                style: GoogleFonts.poppins(
-                  fontSize: 11,
-                  color: color.withOpacity(0.8),
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
+  // ─── STATS ROW ──────────────────────────────
+  Widget _buildStatsRow() {
+    final isFiltered = filteredClients.length != allClients.length;
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        _StatChip(
+          label: 'Total',
+          value: allClients.length,
+          color: _primary,
+          bg: _primaryLight,
+        ),
+        if (isFiltered)
+          _StatChip(
+            label: 'Filtrados',
+            value: filteredClients.length,
+            color: _success,
+            bg: _successLight,
           ),
-        ],
-      ),
+        if (selectedVendedor != null)
+          _FilterTag(
+            label: '${selectedVendedor!.nombre} ${selectedVendedor!.apellido}',
+            onRemove: () => _filterByVendedor(null),
+          ),
+        if (_searchCtrl.text.isNotEmpty)
+          _FilterTag(
+            label: '"${_searchCtrl.text}"',
+            onRemove: () {
+              _searchCtrl.clear();
+              _applyFilters();
+            },
+          ),
+      ],
     );
   }
 
-  Widget _buildCreateButton() {
-    return ElevatedButton.icon(
-      onPressed: _irCrearCliente,
-      icon: const Icon(Icons.add_rounded, size: 20),
-      label: Text(
-        'Nuevo Cliente',
-        style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFF3B82F6),
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        elevation: 0,
-      ),
-    );
+  // ─── CLIENT LIST ────────────────────────────
+  Widget _buildClientList(double availableWidth) {
+    if (filteredClients.isEmpty) return _buildEmptyState();
+
+    final cols = _crossAxisCount(availableWidth);
+
+    if (cols == 1) {
+      return _buildMobileList();
+    }
+    return _buildDesktopGrid(cols);
   }
 
-  // ============== FILTERS CARD ==============
-  Widget _buildFiltersCard() {
+  Widget _buildMobileList() {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE8EDF3)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        color: _surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _border),
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isSmall = constraints.maxWidth < 650;
-
-          if (isSmall) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildSearchField(),
-                if (_isAdmin) ...[
-                  const SizedBox(height: 16),
-                  _buildVendedorDropdown(),
-                ],
-              ],
-            );
-          }
-
-          return Row(
-            children: [
-              Expanded(flex: 2, child: _buildSearchField()),
-              if (_isAdmin) ...[
-                const SizedBox(width: 16),
-                Expanded(child: _buildVendedorDropdown()),
-              ],
-            ],
+      child: ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: filteredClients.length,
+        separatorBuilder: (_, __) =>
+            const Divider(height: 1, color: _border, indent: 16, endIndent: 16),
+        itemBuilder: (_, i) {
+          final c = filteredClients[i];
+          return _ClienteRow(
+            cliente: c,
+            vendedorNombre: _getNombreVendedor(c.idVendedor),
+            onTap: () => _goToCliente(c),
+            isFirst: i == 0,
+            isLast: i == filteredClients.length - 1,
           );
         },
       ),
     );
   }
 
-  Widget _buildSearchField() {
-    return TextField(
-      controller: _searchCtrl,
-      onChanged: _filterBySearch,
-      style: GoogleFonts.poppins(fontSize: 15, color: const Color(0xFF111827)),
-      decoration: InputDecoration(
-        hintText: 'Buscar por nombre, CIF o email...',
-        hintStyle: GoogleFonts.poppins(
-          color: const Color(0xFF9CA3AF),
-          fontSize: 14,
-        ),
-        prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF9CA3AF)),
-        filled: true,
-        fillColor: const Color(0xFFF9FAFB),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 14,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFF3B82F6)),
-        ),
+  Widget _buildDesktopGrid(int cols) {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: cols,
+        crossAxisSpacing: 14,
+        mainAxisSpacing: 14,
+        mainAxisExtent: 196,
       ),
-    );
-  }
-
-  Widget _buildVendedorDropdown() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF9FAFB),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<Vendedor?>(
-          value: selectedVendedor,
-          isExpanded: true,
-          hint: Text(
-            'Todos los vendedores',
-            style: GoogleFonts.poppins(
-              color: const Color(0xFF9CA3AF),
-              fontSize: 14,
-            ),
-          ),
-          icon: const Icon(
-            Icons.keyboard_arrow_down_rounded,
-            color: Color(0xFF6B7280),
-          ),
-          items: [
-            DropdownMenuItem<Vendedor?>(
-              value: null,
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.people_outline_rounded,
-                    size: 18,
-                    color: Color(0xFF6B7280),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Todos los vendedores',
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      color: const Color(0xFF374151),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            ...vendedores.map(
-              (v) => DropdownMenuItem<Vendedor?>(
-                value: v,
-                child: Row(
-                  children: [
-                    Container(
-                      width: 24,
-                      height: 24,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF3B82F6).withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        v.nombre.isNotEmpty ? v.nombre[0].toUpperCase() : '?',
-                        style: GoogleFonts.poppins(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF3B82F6),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        '${v.nombre} ${v.apellido}',
-                        style: GoogleFonts.poppins(fontSize: 14),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-          onChanged: _filterByVendedor,
-        ),
-      ),
-    );
-  }
-
-  // ============== CLIENTS GRID ==============
-  Widget _buildClientsGrid() {
-    if (filteredClients.isEmpty &&
-        _searchCtrl.text.isEmpty &&
-        selectedVendedor == null) {
-      return _buildEmptyState(isSearching: false);
-    }
-
-    if (filteredClients.isEmpty) {
-      return _buildEmptyState(isSearching: true);
-    }
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        int crossAxisCount = 1;
-        if (constraints.maxWidth > 900) {
-          crossAxisCount = 3;
-        } else if (constraints.maxWidth > 600) {
-          crossAxisCount = 2;
-        }
-
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossAxisCount,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            childAspectRatio: 1.4,
-          ),
-          itemCount: filteredClients.length,
-          itemBuilder: (context, index) {
-            final cliente = filteredClients[index];
-            return _ClienteCard(
-              cliente: cliente,
-              vendedorNombre: _getNombreVendedor(cliente.idVendedor),
-              onTap: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ClienteDetailsPage(cliente: cliente),
-                  ),
-                );
-                await _loadAll();
-                _applyFilters();
-              },
-            );
-          },
+      itemCount: filteredClients.length,
+      itemBuilder: (_, i) {
+        final c = filteredClients[i];
+        return _ClienteCard(
+          cliente: c,
+          vendedorNombre: _getNombreVendedor(c.idVendedor),
+          onTap: () => _goToCliente(c),
         );
       },
     );
   }
 
-  // ============== EMPTY STATE ==============
-  Widget _buildEmptyState({required bool isSearching}) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE8EDF3)),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF3F4F6),
-              borderRadius: BorderRadius.circular(20),
+  // ─── EMPTY STATE ────────────────────────────
+  Widget _buildEmptyState() {
+    final isSearching = _searchCtrl.text.isNotEmpty || selectedVendedor != null;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 64),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: _primaryLight,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Icon(
+                isSearching
+                    ? Icons.search_off_rounded
+                    : Icons.people_outline_rounded,
+                size: 32,
+                color: _primary,
+              ),
             ),
-            alignment: Alignment.center,
-            child: Icon(
+            const SizedBox(height: 16),
+            Text(
+              isSearching ? 'Sin resultados' : 'Aún no hay clientes',
+              style: GoogleFonts.poppins(
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+                color: _textPrimary,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
               isSearching
-                  ? Icons.search_off_rounded
-                  : Icons.people_outline_rounded,
-              size: 40,
-              color: const Color(0xFF9CA3AF),
+                  ? 'Prueba con otro término o limpia los filtros.'
+                  : 'Crea tu primer cliente para empezar.',
+              style: GoogleFonts.poppins(fontSize: 13, color: _textSecondary),
+              textAlign: TextAlign.center,
             ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            isSearching ? 'Sin resultados' : 'No hay clientes',
-            style: GoogleFonts.poppins(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: const Color(0xFF374151),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            isSearching
-                ? 'No se encontraron clientes con esa busqueda.'
-                : 'Crea tu primer cliente para comenzar.',
-            style: GoogleFonts.poppins(
-              fontSize: 14,
-              color: const Color(0xFF6B7280),
-            ),
-            textAlign: TextAlign.center,
-          ),
-          if (!isSearching) ...[
             const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: _irCrearCliente,
-              icon: const Icon(Icons.add_rounded, size: 20),
-              label: Text(
-                'Crear cliente',
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF3B82F6),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 14,
+            if (!isSearching)
+              _NewClientBtn(onTap: _irCrearCliente)
+            else
+              TextButton(
+                onPressed: () {
+                  _searchCtrl.clear();
+                  setState(() => selectedVendedor = null);
+                  _applyFilters();
+                },
+                child: Text(
+                  'Limpiar filtros',
+                  style: GoogleFonts.poppins(
+                    color: _primary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                elevation: 0,
               ),
-            ),
           ],
-        ],
+        ),
       ),
     );
   }
 
-  // ============== CREAR CLIENTE DIALOG ==============
+  // ─── CREAR CLIENTE DIALOG ───────────────────
   void _irCrearCliente() {
     final formKey = GlobalKey<FormState>();
-
-    final TextEditingController nombreController = TextEditingController();
-    final TextEditingController cifController = TextEditingController();
-    final TextEditingController emailController = TextEditingController();
-
-    Vendedor? vendedorSeleccionado;
+    final nombreCtrl = TextEditingController();
+    final cifCtrl = TextEditingController();
+    final emailCtrl = TextEditingController();
+    Vendedor? vendedorSel;
     String telefonoCompleto = '';
     bool isSaving = false;
 
-    bool emailValido(String email) {
-      final regex = RegExp(r'^[\w\.-]+@[\w\.-]+\.\w{2,}$');
-      return regex.hasMatch(email);
-    }
-
-    bool cifValido(String cif) {
-      final value = cif.trim().toUpperCase();
-      if (value.isEmpty) return false;
-      final regex = RegExp(r'^[A-Z]?[A-Z0-9]{6,15}$');
-      return regex.hasMatch(value);
+    bool emailValido(String e) =>
+        RegExp(r'^[\w\.-]+@[\w\.-]+\.\w{2,}$').hasMatch(e);
+    bool cifValido(String c) {
+      final v = c.trim().toUpperCase();
+      return v.isNotEmpty && RegExp(r'^[A-Z]?[A-Z0-9]{6,15}$').hasMatch(v);
     }
 
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(22),
-              ),
-              title: Row(
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF3B82F6).withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    alignment: Alignment.center,
-                    child: const Icon(
-                      Icons.person_add_rounded,
-                      color: Color(0xFF3B82F6),
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Nuevo Cliente',
-                          style: GoogleFonts.poppins(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF1F2937),
-                          ),
-                        ),
-                        Text(
-                          'Completa los datos del cliente',
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            color: const Color(0xFF6B7280),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              content: SizedBox(
-                width: 420,
-                child: SingleChildScrollView(
-                  child: Form(
-                    key: formKey,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _DialogField(
-                          controller: nombreController,
-                          label: 'Nombre del cliente',
-                          hint: 'Empresa o persona',
-                          icon: Icons.business_rounded,
-                          validator: (value) {
-                            final nombre = value?.trim() ?? '';
-                            if (nombre.isEmpty) return 'Introduce el nombre';
-                            if (nombre.length < 2) return 'Nombre muy corto';
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        _DialogField(
-                          controller: cifController,
-                          label: 'CIF / NIF',
-                          hint: 'B12345678',
-                          icon: Icons.badge_outlined,
-                          textCapitalization: TextCapitalization.characters,
-                          validator: (value) {
-                            final cif = value?.trim() ?? '';
-                            if (cif.isEmpty) return 'Introduce el CIF';
-                            if (!cifValido(cif)) return 'CIF no valido';
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Telefono',
-                              style: GoogleFonts.poppins(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFF374151),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            IntlPhoneField(
-                              initialCountryCode: 'ES',
-                              disableLengthCheck: false,
-                              style: GoogleFonts.poppins(fontSize: 15),
-                              decoration: InputDecoration(
-                                hintText: '612345678',
-                                hintStyle: GoogleFonts.poppins(
-                                  color: const Color(0xFF9CA3AF),
-                                  fontSize: 14,
-                                ),
-                                filled: true,
-                                fillColor: const Color(0xFFFAFAFA),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 14,
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  borderSide: const BorderSide(
-                                    color: Color(0xFFD1D5DB),
-                                  ),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  borderSide: const BorderSide(
-                                    color: Color(0xFF3B82F6),
-                                  ),
-                                ),
-                                errorBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  borderSide: const BorderSide(
-                                    color: Color(0xFFDC2626),
-                                  ),
-                                ),
-                                focusedErrorBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  borderSide: const BorderSide(
-                                    color: Color(0xFFDC2626),
-                                  ),
-                                ),
-                              ),
-                              onChanged: (phone) {
-                                telefonoCompleto = phone.completeNumber;
-                              },
-                              validator: (phone) {
-                                if (phone == null ||
-                                    phone.number.trim().isEmpty) {
-                                  return 'Introduce el telefono';
-                                }
-                                final soloNumero = phone.number.trim();
-                                if (soloNumero.length < 7 ||
-                                    soloNumero.length > 15) {
-                                  return 'Numero no valido';
-                                }
-                                return null;
-                              },
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        _DialogField(
-                          controller: emailController,
-                          label: 'Correo electronico',
-                          hint: 'cliente@empresa.com',
-                          icon: Icons.email_outlined,
-                          keyboardType: TextInputType.emailAddress,
-                          validator: (value) {
-                            final email = value?.trim() ?? '';
-                            if (email.isEmpty) return 'Introduce el email';
-                            if (!emailValido(email)) return 'Email no valido';
-                            return null;
-                          },
-                        ),
-                        if (_isAdmin) ...[
-                          const SizedBox(height: 16),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Vendedor asignado',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF374151),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFFAFAFA),
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(
-                                    color: const Color(0xFFD1D5DB),
-                                  ),
-                                ),
-                                child: DropdownButtonHideUnderline(
-                                  child: DropdownButtonFormField<Vendedor>(
-                                    value: vendedorSeleccionado,
-                                    isExpanded: true,
-                                    decoration: const InputDecoration(
-                                      border: InputBorder.none,
-                                      contentPadding: EdgeInsets.zero,
-                                    ),
-                                    hint: Text(
-                                      'Seleccionar vendedor',
-                                      style: GoogleFonts.poppins(
-                                        color: const Color(0xFF9CA3AF),
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                    icon: const Icon(
-                                      Icons.keyboard_arrow_down_rounded,
-                                    ),
-                                    items: vendedores.map((v) {
-                                      return DropdownMenuItem<Vendedor>(
-                                        value: v,
-                                        child: Text(
-                                          '${v.nombre} ${v.apellido}',
-                                          style: GoogleFonts.poppins(
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                      );
-                                    }).toList(),
-                                    validator: (value) {
-                                      if (_isAdmin && value == null) {
-                                        return 'Selecciona un vendedor';
-                                      }
-                                      return null;
-                                    },
-                                    onChanged: (value) {
-                                      setStateDialog(() {
-                                        vendedorSeleccionado = value;
-                                      });
-                                    },
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          backgroundColor: _surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+          contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+          actionsPadding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+          title: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: _primaryLight,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.person_add_rounded,
+                  color: _primary,
+                  size: 20,
                 ),
               ),
-              actionsPadding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
-              actions: [
-                Row(
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(50),
-                          side: const BorderSide(color: Color(0xFFE5E7EB)),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: Text(
-                          'Cancelar',
-                          style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF374151),
-                          ),
-                        ),
+                    Text(
+                      'Nuevo cliente',
+                      style: GoogleFonts.poppins(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: _textPrimary,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: isSaving
-                            ? null
-                            : () async {
-                                if (!formKey.currentState!.validate()) return;
-
-                                final nombre = nombreController.text.trim();
-                                final cif = cifController.text
-                                    .trim()
-                                    .toUpperCase();
-                                final email = emailController.text.trim();
-
-                                if (telefonoCompleto.trim().isEmpty) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: const Text(
-                                        'Introduce un telefono valido',
-                                      ),
-                                      backgroundColor: const Color(0xFFDC2626),
-                                      behavior: SnackBarBehavior.floating,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      margin: const EdgeInsets.all(16),
-                                    ),
-                                  );
-                                  return;
-                                }
-
-                                setStateDialog(() => isSaving = true);
-
-                                final int? idVendedor = _isAdmin
-                                    ? vendedorSeleccionado!.id
-                                    : Session.userId;
-
-                                final nuevo = await _clienteService.addCliente(
-                                  nombre,
-                                  cif,
-                                  idVendedor,
-                                  telefonoCompleto,
-                                  email,
-                                );
-
-                                if (nuevo == null) {
-                                  setStateDialog(() => isSaving = false);
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: const Text(
-                                          'Error al crear cliente',
-                                        ),
-                                        backgroundColor: const Color(
-                                          0xFFDC2626,
-                                        ),
-                                        behavior: SnackBarBehavior.floating,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
-                                        ),
-                                        margin: const EdgeInsets.all(16),
-                                      ),
-                                    );
-                                  }
-                                  return;
-                                }
-
-                                setState(() {
-                                  allClients.insert(0, nuevo);
-                                });
-                                _applyFilters();
-
-                                if (context.mounted) {
-                                  Navigator.pop(context);
-
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          ClienteDetailsPage(cliente: nuevo),
-                                    ),
-                                  );
-
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: const Text(
-                                        'Cliente creado correctamente',
-                                      ),
-                                      backgroundColor: const Color(0xFF10B981),
-                                      behavior: SnackBarBehavior.floating,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      margin: const EdgeInsets.all(16),
-                                    ),
-                                  );
-                                }
-                              },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF3B82F6),
-                          minimumSize: const Size.fromHeight(50),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: isSaving
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.5,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : Text(
-                                'Crear Cliente',
-                                style: GoogleFonts.poppins(
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                ),
-                              ),
+                    Text(
+                      'Completa los datos del cliente',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: _textSecondary,
                       ),
                     ),
                   ],
                 ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.pop(ctx),
+                icon: const Icon(
+                  Icons.close_rounded,
+                  color: _textTertiary,
+                  size: 20,
+                ),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 8),
+                    _Field(
+                      ctrl: nombreCtrl,
+                      label: 'Nombre',
+                      hint: 'Empresa o persona',
+                      icon: Icons.business_outlined,
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty)
+                          return 'Introduce el nombre';
+                        if (v.trim().length < 2) return 'Nombre muy corto';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 14),
+                    _Field(
+                      ctrl: cifCtrl,
+                      label: 'CIF / NIF',
+                      hint: 'B12345678',
+                      icon: Icons.badge_outlined,
+                      textCapitalization: TextCapitalization.characters,
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty)
+                          return 'Introduce el CIF';
+                        if (!cifValido(v)) return 'CIF no válido';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 14),
+                    _phoneLabel(),
+                    const SizedBox(height: 6),
+                    IntlPhoneField(
+                      initialCountryCode: 'ES',
+                      style: GoogleFonts.poppins(fontSize: 14),
+                      decoration: _phoneDecoration(),
+                      onChanged: (p) => telefonoCompleto = p.completeNumber,
+                      validator: (p) {
+                        if (p == null || p.number.trim().isEmpty)
+                          return 'Introduce el teléfono';
+                        if (p.number.trim().length < 7 ||
+                            p.number.trim().length > 15)
+                          return 'Número no válido';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 14),
+                    _Field(
+                      ctrl: emailCtrl,
+                      label: 'Email',
+                      hint: 'cliente@empresa.com',
+                      icon: Icons.mail_outline_rounded,
+                      keyboardType: TextInputType.emailAddress,
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty)
+                          return 'Introduce el email';
+                        if (!emailValido(v.trim())) return 'Email no válido';
+                        return null;
+                      },
+                    ),
+                    if (_isAdmin) ...[
+                      const SizedBox(height: 14),
+                      _VendedorDropdownField(
+                        vendedores: vendedores,
+                        value: vendedorSel,
+                        onChanged: (v) => setD(() => vendedorSel = v),
+                      ),
+                    ],
+                    const SizedBox(height: 4),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(46),
+                      side: const BorderSide(color: _border),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: Text(
+                      'Cancelar',
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600,
+                        color: _textSecondary,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: isSaving
+                        ? null
+                        : () async {
+                            if (!formKey.currentState!.validate()) return;
+                            if (telefonoCompleto.trim().isEmpty) {
+                              _showSnack(
+                                ctx,
+                                'Introduce un teléfono válido',
+                                isError: true,
+                              );
+                              return;
+                            }
+                            setD(() => isSaving = true);
+
+                            final idVendedor = _isAdmin
+                                ? vendedorSel!.id
+                                : Session.userId;
+                            final nuevo = await _clienteService.addCliente(
+                              nombreCtrl.text.trim(),
+                              cifCtrl.text.trim().toUpperCase(),
+                              idVendedor,
+                              telefonoCompleto,
+                              emailCtrl.text.trim(),
+                            );
+
+                            if (nuevo == null) {
+                              setD(() => isSaving = false);
+                              if (ctx.mounted)
+                                _showSnack(
+                                  ctx,
+                                  'Error al crear el cliente',
+                                  isError: true,
+                                );
+                              return;
+                            }
+
+                            setState(() => allClients.insert(0, nuevo));
+                            _applyFilters();
+
+                            if (ctx.mounted) {
+                              Navigator.pop(ctx);
+                              _showSnack(ctx, 'Cliente creado correctamente');
+                              Navigator.push(
+                                ctx,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      ClienteDetailsPage(cliente: nuevo),
+                                ),
+                              );
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _primary,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(46),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: isSaving
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            'Crear cliente',
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                  ),
+                ),
               ],
-            );
-          },
-        );
-      },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showSnack(BuildContext ctx, String msg, {bool isError = false}) {
+    ScaffoldMessenger.of(ctx).showSnackBar(
+      SnackBar(
+        content: Text(msg, style: GoogleFonts.poppins(fontSize: 13)),
+        backgroundColor: isError ? _error : _success,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  Widget _phoneLabel() => Align(
+    alignment: Alignment.centerLeft,
+    child: Text(
+      'Teléfono',
+      style: GoogleFonts.poppins(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: _textPrimary,
+      ),
+    ),
+  );
+
+  InputDecoration _phoneDecoration() => InputDecoration(
+    hintText: '612 345 678',
+    hintStyle: GoogleFonts.poppins(color: _textTertiary, fontSize: 14),
+    filled: true,
+    fillColor: _bg,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: _border),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: _primary, width: 1.5),
+    ),
+    errorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: _error),
+    ),
+    focusedErrorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: _error, width: 1.5),
+    ),
+  );
+}
+
+// ─────────────────────────────────────────────
+//  TEXT STYLE
+// ─────────────────────────────────────────────
+final _titleStyle = GoogleFonts.poppins(
+  fontSize: 26,
+  fontWeight: FontWeight.w700,
+  color: _textPrimary,
+  height: 1.2,
+);
+
+// ─────────────────────────────────────────────
+//  TOOLBAR WIDGETS
+// ─────────────────────────────────────────────
+class _SearchField extends StatelessWidget {
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+
+  const _SearchField({required this.controller, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      onChanged: onChanged,
+      style: GoogleFonts.poppins(fontSize: 14, color: _textPrimary),
+      decoration: InputDecoration(
+        hintText: 'Buscar por nombre, CIF o email…',
+        hintStyle: GoogleFonts.poppins(color: _textTertiary, fontSize: 14),
+        prefixIcon: const Icon(
+          Icons.search_rounded,
+          color: _textTertiary,
+          size: 20,
+        ),
+        suffixIcon: controller.text.isNotEmpty
+            ? IconButton(
+                icon: const Icon(
+                  Icons.close_rounded,
+                  size: 18,
+                  color: _textTertiary,
+                ),
+                onPressed: () {
+                  controller.clear();
+                  onChanged('');
+                },
+              )
+            : null,
+        filled: true,
+        fillColor: _surface,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 13,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: _primary, width: 1.5),
+        ),
+      ),
     );
   }
 }
 
-// ============== CLIENTE CARD ==============
+class _VendedorFilter extends StatelessWidget {
+  final List<Vendedor> vendedores;
+  final Vendedor? selected;
+  final ValueChanged<Vendedor?> onChanged;
+
+  const _VendedorFilter({
+    required this.vendedores,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 46,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: selected != null ? _primary : _border,
+          width: selected != null ? 1.5 : 1,
+        ),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<Vendedor?>(
+          value: selected,
+          isExpanded: true,
+          icon: const Icon(
+            Icons.expand_more_rounded,
+            color: _textTertiary,
+            size: 20,
+          ),
+          hint: Text(
+            'Todos los vendedores',
+            style: GoogleFonts.poppins(color: _textTertiary, fontSize: 13),
+          ),
+          style: GoogleFonts.poppins(fontSize: 13, color: _textPrimary),
+          items: [
+            DropdownMenuItem<Vendedor?>(
+              value: null,
+              child: Text(
+                'Todos los vendedores',
+                style: GoogleFonts.poppins(fontSize: 13, color: _textSecondary),
+              ),
+            ),
+            ...vendedores.map(
+              (v) => DropdownMenuItem<Vendedor?>(
+                value: v,
+                child: Text(
+                  '${v.nombre} ${v.apellido}',
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(fontSize: 13),
+                ),
+              ),
+            ),
+          ],
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+//  STAT CHIPS & FILTER TAGS
+// ─────────────────────────────────────────────
+class _StatChip extends StatelessWidget {
+  final String label;
+  final int value;
+  final Color color;
+  final Color bg;
+
+  const _StatChip({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.bg,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$value',
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+          const SizedBox(width: 5),
+          Text(label, style: GoogleFonts.poppins(fontSize: 12, color: color)),
+        ],
+      ),
+    );
+  }
+}
+
+class _FilterTag extends StatelessWidget {
+  final String label;
+  final VoidCallback onRemove;
+
+  const _FilterTag({required this.label, required this.onRemove});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 5, 6, 5),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.poppins(fontSize: 12, color: _textSecondary),
+          ),
+          const SizedBox(width: 4),
+          GestureDetector(
+            onTap: onRemove,
+            child: const Icon(
+              Icons.close_rounded,
+              size: 14,
+              color: _textTertiary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+//  BUTTONS
+// ─────────────────────────────────────────────
+class _RefreshBtn extends StatefulWidget {
+  final bool loading;
+  final VoidCallback onTap;
+
+  const _RefreshBtn({required this.loading, required this.onTap});
+
+  @override
+  State<_RefreshBtn> createState() => _RefreshBtnState();
+}
+
+class _RefreshBtnState extends State<_RefreshBtn>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _spin;
+
+  @override
+  void initState() {
+    super.initState();
+    _spin = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+  }
+
+  @override
+  void didUpdateWidget(_RefreshBtn old) {
+    super.didUpdateWidget(old);
+    if (widget.loading) {
+      _spin.repeat();
+    } else {
+      _spin.stop();
+      _spin.reset();
+    }
+  }
+
+  @override
+  void dispose() {
+    _spin.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Actualizar',
+      child: InkWell(
+        onTap: widget.loading ? null : widget.onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: _surface,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: _border),
+          ),
+          child: Center(
+            child: RotationTransition(
+              turns: _spin,
+              child: Icon(
+                Icons.refresh_rounded,
+                size: 18,
+                color: widget.loading ? _textTertiary : _textSecondary,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NewClientBtn extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _NewClientBtn({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton.icon(
+      onPressed: onTap,
+      icon: const Icon(Icons.add_rounded, size: 18),
+      label: Text(
+        'Nuevo cliente',
+        style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 14),
+      ),
+      style: FilledButton.styleFrom(
+        backgroundColor: _primary,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+//  CLIENTE CARD (tablet / desktop grid)
+// ─────────────────────────────────────────────
 class _ClienteCard extends StatefulWidget {
   final Cliente cliente;
   final String vendedorNombre;
@@ -1208,66 +1153,49 @@ class _ClienteCard extends StatefulWidget {
 }
 
 class _ClienteCardState extends State<_ClienteCard> {
-  bool _isHovered = false;
+  bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      cursor: SystemMouseCursors.click,
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.all(20),
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
+            color: _surface,
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: _isHovered
-                  ? const Color(0xFF3B82F6).withOpacity(0.4)
-                  : const Color(0xFFE8EDF3),
-              width: _isHovered ? 2 : 1,
+              color: _hovered ? _primary : _border,
+              width: _hovered ? 1.5 : 1,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: _isHovered
-                    ? const Color(0xFF3B82F6).withOpacity(0.12)
-                    : Colors.black.withOpacity(0.04),
-                blurRadius: _isHovered ? 20 : 12,
-                offset: const Offset(0, 6),
-              ),
-            ],
+            boxShadow: _hovered
+                ? [
+                    BoxShadow(
+                      color: _primary.withOpacity(0.10),
+                      blurRadius: 18,
+                      offset: const Offset(0, 6),
+                    ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF3B82F6), Color(0xFF1D4ED8)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      widget.cliente.nombre.isNotEmpty
-                          ? widget.cliente.nombre[0].toUpperCase()
-                          : '?',
-                      style: GoogleFonts.poppins(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
+                  _Avatar(name: widget.cliente.nombre),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1275,9 +1203,9 @@ class _ClienteCardState extends State<_ClienteCard> {
                         Text(
                           widget.cliente.nombre,
                           style: GoogleFonts.poppins(
-                            fontSize: 16,
+                            fontSize: 14,
                             fontWeight: FontWeight.w600,
-                            color: const Color(0xFF1F2937),
+                            color: _textPrimary,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -1286,84 +1214,70 @@ class _ClienteCardState extends State<_ClienteCard> {
                         Text(
                           widget.cliente.cif,
                           style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            color: const Color(0xFF6B7280),
-                            fontWeight: FontWeight.w500,
+                            fontSize: 12,
+                            color: _textTertiary,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  if (_isHovered)
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF3B82F6).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.arrow_forward_ios_rounded,
-                        size: 16,
-                        color: Color(0xFF3B82F6),
-                      ),
+                  AnimatedOpacity(
+                    opacity: _hovered ? 1 : 0,
+                    duration: const Duration(milliseconds: 150),
+                    child: const Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 13,
+                      color: _primary,
                     ),
+                  ),
                 ],
               ),
               const Spacer(),
-              _InfoRow(
-                icon: Icons.email_outlined,
+              const Divider(height: 1, color: _border),
+              const SizedBox(height: 10),
+              _IconRow(
+                icon: Icons.mail_outline_rounded,
                 value: widget.cliente.email.isNotEmpty
                     ? widget.cliente.email
-                    : 'Sin email',
-                isPlaceholder: widget.cliente.email.isEmpty,
+                    : '—',
+                empty: widget.cliente.email.isEmpty,
               ),
-              const SizedBox(height: 8),
-              _InfoRow(
+              const SizedBox(height: 6),
+              _IconRow(
                 icon: Icons.phone_outlined,
-                value: widget.cliente.telefono?.isNotEmpty == true
+                value: (widget.cliente.telefono?.isNotEmpty ?? false)
                     ? widget.cliente.telefono!
-                    : 'Sin telefono',
-                isPlaceholder: widget.cliente.telefono?.isEmpty ?? true,
+                    : '—',
+                empty: !(widget.cliente.telefono?.isNotEmpty ?? false),
               ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: widget.cliente.idVendedor != null
-                      ? const Color(0xFF10B981).withOpacity(0.1)
-                      : const Color(0xFFF3F4F6),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.person_outline_rounded,
-                      size: 14,
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
                       color: widget.cliente.idVendedor != null
-                          ? const Color(0xFF10B981)
-                          : const Color(0xFF9CA3AF),
+                          ? _success
+                          : _textTertiary,
+                      shape: BoxShape.circle,
                     ),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        widget.vendedorNombre,
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: widget.cliente.idVendedor != null
-                              ? const Color(0xFF10B981)
-                              : const Color(0xFF9CA3AF),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      widget.vendedorNombre,
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        color: widget.cliente.idVendedor != null
+                            ? _textSecondary
+                            : _textTertiary,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -1373,39 +1287,156 @@ class _ClienteCardState extends State<_ClienteCard> {
   }
 }
 
-// ============== INFO ROW ==============
-class _InfoRow extends StatelessWidget {
+// ─────────────────────────────────────────────
+//  CLIENTE ROW (mobile list)
+// ─────────────────────────────────────────────
+class _ClienteRow extends StatelessWidget {
+  final Cliente cliente;
+  final String vendedorNombre;
+  final VoidCallback onTap;
+  final bool isFirst;
+  final bool isLast;
+
+  const _ClienteRow({
+    required this.cliente,
+    required this.vendedorNombre,
+    required this.onTap,
+    required this.isFirst,
+    required this.isLast,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.vertical(
+        top: isFirst ? const Radius.circular(16) : Radius.zero,
+        bottom: isLast ? const Radius.circular(16) : Radius.zero,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            _Avatar(name: cliente.nombre, size: 40),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    cliente.nombre,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: _textPrimary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Text(
+                        cliente.cif,
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: _textTertiary,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        width: 3,
+                        height: 3,
+                        decoration: const BoxDecoration(
+                          color: _textTertiary,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          vendedorNombre,
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: _textTertiary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: _textTertiary,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+//  SHARED SMALL WIDGETS
+// ─────────────────────────────────────────────
+class _Avatar extends StatelessWidget {
+  final String name;
+  final double size;
+
+  const _Avatar({required this.name, this.size = 44});
+
+  @override
+  Widget build(BuildContext context) {
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF3B82F6), Color(0xFF1D4ED8)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(size * 0.28),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        initial,
+        style: GoogleFonts.poppins(
+          fontSize: size * 0.38,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+}
+
+class _IconRow extends StatelessWidget {
   final IconData icon;
   final String value;
-  final bool isPlaceholder;
+  final bool empty;
 
-  const _InfoRow({
-    required this.icon,
-    required this.value,
-    this.isPlaceholder = false,
-  });
+  const _IconRow({required this.icon, required this.value, this.empty = false});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(
-          icon,
-          size: 14,
-          color: isPlaceholder
-              ? const Color(0xFFD1D5DB)
-              : const Color(0xFF9CA3AF),
-        ),
-        const SizedBox(width: 8),
+        Icon(icon, size: 13, color: empty ? _border : _textTertiary),
+        const SizedBox(width: 6),
         Expanded(
           child: Text(
             value,
             style: GoogleFonts.poppins(
-              fontSize: 13,
-              color: isPlaceholder
-                  ? const Color(0xFFD1D5DB)
-                  : const Color(0xFF6B7280),
-              fontStyle: isPlaceholder ? FontStyle.italic : FontStyle.normal,
+              fontSize: 12,
+              color: empty ? _textTertiary : _textSecondary,
+              fontStyle: empty ? FontStyle.italic : FontStyle.normal,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -1416,9 +1447,11 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
-// ============== DIALOG FIELD ==============
-class _DialogField extends StatelessWidget {
-  final TextEditingController controller;
+// ─────────────────────────────────────────────
+//  DIALOG HELPERS
+// ─────────────────────────────────────────────
+class _Field extends StatelessWidget {
+  final TextEditingController ctrl;
   final String label;
   final String hint;
   final IconData icon;
@@ -1426,8 +1459,8 @@ class _DialogField extends StatelessWidget {
   final TextCapitalization textCapitalization;
   final String? Function(String?)? validator;
 
-  const _DialogField({
-    required this.controller,
+  const _Field({
+    required this.ctrl,
     required this.label,
     required this.hint,
     required this.icon,
@@ -1444,53 +1477,176 @@ class _DialogField extends StatelessWidget {
         Text(
           label,
           style: GoogleFonts.poppins(
-            fontSize: 14,
+            fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: const Color(0xFF374151),
+            color: _textPrimary,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         TextFormField(
-          controller: controller,
+          controller: ctrl,
           keyboardType: keyboardType,
           textCapitalization: textCapitalization,
-          style: GoogleFonts.poppins(
-            fontSize: 15,
-            color: const Color(0xFF111827),
-          ),
+          style: GoogleFonts.poppins(fontSize: 14, color: _textPrimary),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: GoogleFonts.poppins(
-              color: const Color(0xFF9CA3AF),
-              fontSize: 14,
-            ),
-            prefixIcon: Icon(icon, color: const Color(0xFF9CA3AF), size: 20),
+            hintStyle: GoogleFonts.poppins(color: _textTertiary, fontSize: 14),
+            prefixIcon: Icon(icon, size: 18, color: _textTertiary),
             filled: true,
-            fillColor: const Color(0xFFFAFAFA),
+            fillColor: _bg,
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 14,
-              vertical: 14,
+              vertical: 13,
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: _border),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: Color(0xFF3B82F6)),
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: _primary, width: 1.5),
             ),
             errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: Color(0xFFDC2626)),
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: _error),
             ),
             focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: Color(0xFFDC2626)),
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: _error, width: 1.5),
             ),
           ),
           validator: validator,
         ),
       ],
+    );
+  }
+}
+
+class _VendedorDropdownField extends StatelessWidget {
+  final List<Vendedor> vendedores;
+  final Vendedor? value;
+  final ValueChanged<Vendedor?> onChanged;
+
+  const _VendedorDropdownField({
+    required this.vendedores,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Vendedor asignado',
+          style: GoogleFonts.poppins(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: _textPrimary,
+          ),
+        ),
+        const SizedBox(height: 6),
+        DropdownButtonFormField<Vendedor>(
+          value: value,
+          isExpanded: true,
+          decoration: InputDecoration(
+            hintText: 'Seleccionar vendedor',
+            hintStyle: GoogleFonts.poppins(color: _textTertiary, fontSize: 14),
+            filled: true,
+            fillColor: _bg,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 13,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: _border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: _primary, width: 1.5),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: _error),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: _error, width: 1.5),
+            ),
+          ),
+          icon: const Icon(
+            Icons.expand_more_rounded,
+            color: _textTertiary,
+            size: 20,
+          ),
+          items: vendedores
+              .map(
+                (v) => DropdownMenuItem(
+                  value: v,
+                  child: Text(
+                    '${v.nombre} ${v.apellido}',
+                    style: GoogleFonts.poppins(fontSize: 14),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              )
+              .toList(),
+          validator: (v) => v == null ? 'Selecciona un vendedor' : null,
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+//  SKELETON BOX
+// ─────────────────────────────────────────────
+class _Sk extends StatefulWidget {
+  final double? width;
+  final double height;
+  final double radius;
+
+  const _Sk({this.width, required this.height, this.radius = 12});
+
+  @override
+  State<_Sk> createState() => _SkState();
+}
+
+class _SkState extends State<_Sk> with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 850),
+    )..repeat(reverse: true);
+    _anim = Tween<double>(begin: 0.35, end: 0.75).animate(_ctrl);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (_, __) => Container(
+        width: widget.width,
+        height: widget.height,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE2E8F0).withOpacity(_anim.value),
+          borderRadius: BorderRadius.circular(widget.radius),
+        ),
+      ),
     );
   }
 }

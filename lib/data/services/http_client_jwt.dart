@@ -1,13 +1,11 @@
 import 'dart:convert';
 import 'package:expositor_app/core/session/session.dart';
-import 'package:expositor_app/main.dart';
+import 'package:expositor_app/core/navigation/navigator_key.dart';
 import 'package:expositor_app/presentation/pages/login/login_page.dart';
 import 'package:http/http.dart' as http;
 import 'package:expositor_app/core/services/secure_storage_service.dart';
 import 'package:expositor_app/data/services/auth_service.dart';
 import 'package:flutter/material.dart';
-
-final GlobalKey<NavigatorState> appNavKey = GlobalKey<NavigatorState>();
 
 class HttpClientJwt {
   static final SecureStorageService _storage = SecureStorageService();
