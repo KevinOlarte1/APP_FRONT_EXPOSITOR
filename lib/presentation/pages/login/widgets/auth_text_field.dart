@@ -7,6 +7,8 @@ class AuthTextField extends StatelessWidget {
   final String label;
   final bool obscure;
   final Widget? suffix;
+  final List<String>? autofillHints;
+  final TextInputType? keyboardType;
 
   const AuthTextField({
     super.key,
@@ -14,6 +16,8 @@ class AuthTextField extends StatelessWidget {
     required this.label,
     this.obscure = false,
     this.suffix,
+    this.autofillHints,
+    this.keyboardType,
   });
 
   @override
@@ -21,6 +25,8 @@ class AuthTextField extends StatelessWidget {
     return TextField(
       controller: controller,
       obscureText: obscure,
+      autofillHints: autofillHints,
+      keyboardType: keyboardType,
       decoration: InputDecoration(
         labelText: label,
         labelStyle: GoogleFonts.poppins(color: Colors.black45, fontSize: 14),

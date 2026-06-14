@@ -1,6 +1,4 @@
-import 'package:expositor_app/core/services/file_saver.dart';
 import 'package:expositor_app/data/services/parametros_globales_service.dart';
-import 'package:expositor_app/utils/download/download_web.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -309,51 +307,71 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
             builder: (_, constraints) {
               final wide = constraints.maxWidth > 600;
               final items = [
-                _FinItem('Bruto', '${pedido.brutoTotal} €', _textSecondary),
+                _FinItem(
+                  'Bruto',
+                  '${pedido.brutoTotal} €',
+                  _textSecondary,
+                  accentColor: _border,
+                  sub: '—',
+                ),
                 _FinItem(
                   'Base imponible',
                   '${pedido.baseImponible} €',
-                  _textSecondary,
-                  sub: '${pedido.descuento}% dto.',
+                  _warning,
+                  accentColor: _warning,
+                  sub: '${pedido.descuento}% descuento',
                 ),
                 _FinItem(
                   'IVA',
                   '${pedido.precioIva} €',
                   _primary,
-                  sub: '${pedido.iva}%',
+                  accentColor: _primary,
+                  sub: '${pedido.iva}% aplicado',
                 ),
-                _FinItem('Total', '${pedido.total} €', _success, bold: true),
+                _FinItem(
+                  'Total',
+                  '${pedido.total} €',
+                  _success,
+                  accentColor: _success,
+                  sub: 'Precio final',
+                  bold: true,
+                ),
               ];
               if (wide) {
-                return Row(
-                  children: items
-                      .map(
-                        (i) => Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.only(right: 10),
-                            child: _buildFinBox(i),
-                          ),
-                        ),
-                      )
-                      .toList(),
+                return IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (int i = 0; i < items.length; i++) ...[
+                        Expanded(child: _buildFinBox(items[i])),
+                        if (i < items.length - 1) const SizedBox(width: 10),
+                      ],
+                    ],
+                  ),
                 );
               }
               return Column(
                 children: [
-                  Row(
-                    children: [
-                      Expanded(child: _buildFinBox(items[0])),
-                      const SizedBox(width: 10),
-                      Expanded(child: _buildFinBox(items[1])),
-                    ],
+                  IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(child: _buildFinBox(items[0])),
+                        const SizedBox(width: 10),
+                        Expanded(child: _buildFinBox(items[1])),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(child: _buildFinBox(items[2])),
-                      const SizedBox(width: 10),
-                      Expanded(child: _buildFinBox(items[3])),
-                    ],
+                  IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(child: _buildFinBox(items[2])),
+                        const SizedBox(width: 10),
+                        Expanded(child: _buildFinBox(items[3])),
+                      ],
+                    ),
                   ),
                 ],
               );
@@ -373,34 +391,65 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
 
   Widget _buildFinBox(_FinItem item) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: _bg,
-        borderRadius: BorderRadius.circular(10),
+        color: _surface,
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            item.label,
-            style: GoogleFonts.poppins(fontSize: 11, color: _textTertiary),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
-          const SizedBox(height: 3),
-          Text(
-            item.value,
-            style: GoogleFonts.poppins(
-              fontSize: item.bold ? 16 : 14,
-              fontWeight: item.bold ? FontWeight.w700 : FontWeight.w600,
-              color: item.color,
-            ),
-          ),
-          if (item.sub != null)
-            Text(
-              item.sub!,
-              style: GoogleFonts.poppins(fontSize: 10, color: _textTertiary),
-            ),
         ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Accent bar
+            Container(height: 3, color: item.accentColor),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      item.label,
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: _textTertiary,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      item.value,
+                      style: GoogleFonts.poppins(
+                        fontSize: item.bold ? 17 : 15,
+                        fontWeight: item.bold
+                            ? FontWeight.w700
+                            : FontWeight.w600,
+                        color: item.color,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      item.sub ?? '',
+                      style: GoogleFonts.poppins(
+                        fontSize: 10,
+                        color: _textTertiary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -411,6 +460,13 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
         spacing: 8,
         runSpacing: 8,
         children: [
+          _ActionBtn(
+            icon: Icons.lock_open_rounded,
+            label: 'Reabrir',
+            color: _warning,
+            bg: _warningLight,
+            onTap: _confirmReabrirPedido,
+          ),
           _ActionBtn(
             icon: Icons.copy_outlined,
             label: 'Clonar',
@@ -437,12 +493,39 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
       );
     }
 
-    return _ActionBtn(
-      icon: Icons.lock_outline_rounded,
-      label: 'Cerrar pedido',
-      color: _error,
-      bg: _errorLight,
-      onTap: _confirmCerrarPedido,
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        _ActionBtn(
+          icon: Icons.percent_rounded,
+          label: 'Descuento',
+          color: _warning,
+          bg: _warningLight,
+          onTap: _showEditDescuentoDialog,
+        ),
+        _ActionBtn(
+          icon: Icons.receipt_outlined,
+          label: 'IVA',
+          color: _primary,
+          bg: _primaryLight,
+          onTap: _showEditIvaDialog,
+        ),
+        _ActionBtn(
+          icon: Icons.picture_as_pdf_outlined,
+          label: 'PDF',
+          color: _success,
+          bg: _successLight,
+          onTap: _descargarPedidoPdf,
+        ),
+        _ActionBtn(
+          icon: Icons.lock_outline_rounded,
+          label: 'Cerrar pedido',
+          color: _error,
+          bg: _errorLight,
+          onTap: _confirmCerrarPedido,
+        ),
+      ],
     );
   }
 
@@ -547,11 +630,12 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
 
   Future<void> _guardarComentario() async {
     setState(() => _guardandoComentario = true);
-    final ok = await pedidoService.putComentario(
+    final result = await pedidoService.updatePedido(
       idCliente: widget.pedido.idCliente,
       idPedido: widget.pedido.id,
       comentario: _comentarioCtrl.text.trim(),
     );
+    final ok = result != null;
     setState(() => _guardandoComentario = false);
     if (ok) {
       _showSnack('Comentario actualizado');
@@ -584,15 +668,18 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
                 ),
               ),
               const SizedBox(width: 10),
-              Text(
-                'Líneas del pedido',
-                style: GoogleFonts.poppins(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: _textPrimary,
+              Expanded(
+                child: Text(
+                  'Líneas del pedido',
+                  style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: _textPrimary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
@@ -890,24 +977,33 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
                       color: linea.stockFinal != null ? _success : _warning,
                     ),
                     const SizedBox(width: 7),
-                    Text(
-                      'Stock final: ',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        color: _textSecondary,
+                    Expanded(
+                      child: RichText(
+                        overflow: TextOverflow.ellipsis,
+                        text: TextSpan(
+                          children: [
+                            TextSpan(
+                              text: 'Stock final: ',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                color: _textSecondary,
+                              ),
+                            ),
+                            TextSpan(
+                              text: linea.stockFinal?.toString() ?? 'Pendiente',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: linea.stockFinal != null
+                                    ? _textPrimary
+                                    : _warning,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                    Text(
-                      linea.stockFinal?.toString() ?? 'Pendiente',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: linea.stockFinal != null
-                            ? _textPrimary
-                            : _warning,
-                      ),
-                    ),
-                    const Spacer(),
+                    const SizedBox(width: 8),
                     if (!pedido.cerrado)
                       GestureDetector(
                         onTap: () => _showStockFinalDialog(context, linea),
@@ -1340,6 +1436,119 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
     );
   }
 
+  void _confirmReabrirPedido() {
+    showDialog(
+      context: context,
+      builder: (ctx) => _StyledDialog(
+        title: 'Reabrir pedido',
+        icon: Icons.lock_open_rounded,
+        iconColor: _warning,
+        iconBg: _warningLight,
+        onClose: () => Navigator.pop(ctx),
+        content: Text(
+          'Al reabrir el pedido se eliminará el stock final de todas las líneas y podrás volver a editarlo.',
+          style: GoogleFonts.poppins(fontSize: 14, color: _textSecondary),
+        ),
+        onConfirm: () async {
+          Navigator.pop(ctx);
+          final ok = await pedidoService.reabrirPedido(
+            widget.pedido.idCliente,
+            widget.pedido.id,
+          );
+          if (ok) {
+            _showSnack('Pedido reabierto correctamente');
+            await _refreshPedido();
+          } else {
+            _showSnack('Error al reabrir el pedido', isError: true);
+          }
+        },
+        confirmLabel: 'Reabrir',
+        confirmColor: _warning,
+      ),
+    );
+  }
+
+  void _showEditDescuentoDialog() {
+    final ctrl = TextEditingController(
+      text: widget.pedido.descuento.toString(),
+    );
+    showDialog(
+      context: context,
+      builder: (ctx) => _StyledDialog(
+        title: 'Editar descuento',
+        icon: Icons.percent_rounded,
+        iconColor: _warning,
+        iconBg: _warningLight,
+        onClose: () => Navigator.pop(ctx),
+        content: _SimpleField(
+          ctrl: ctrl,
+          label: 'Descuento (%)',
+          keyboardType: TextInputType.number,
+        ),
+        onConfirm: () async {
+          final value = int.tryParse(ctrl.text.trim());
+          if (value == null || value < 0 || value > 100) {
+            _showSnack('Introduce un valor entre 0 y 100', isError: true);
+            return;
+          }
+          Navigator.pop(ctx);
+          final updated = await pedidoService.updatePedido(
+            idCliente: widget.pedido.idCliente,
+            idPedido: widget.pedido.id,
+            descuento: value,
+          );
+          if (updated != null) {
+            _showSnack('Descuento actualizado');
+            await _refreshPedido();
+          } else {
+            _showSnack('Error al actualizar el descuento', isError: true);
+          }
+        },
+        confirmLabel: 'Guardar',
+        confirmColor: _warning,
+      ),
+    );
+  }
+
+  void _showEditIvaDialog() {
+    final ctrl = TextEditingController(text: widget.pedido.iva.toString());
+    showDialog(
+      context: context,
+      builder: (ctx) => _StyledDialog(
+        title: 'Editar IVA',
+        icon: Icons.receipt_outlined,
+        iconColor: _primary,
+        iconBg: _primaryLight,
+        onClose: () => Navigator.pop(ctx),
+        content: _SimpleField(
+          ctrl: ctrl,
+          label: 'IVA (%)',
+          keyboardType: TextInputType.number,
+        ),
+        onConfirm: () async {
+          final value = int.tryParse(ctrl.text.trim());
+          if (value == null || value < 0 || value > 100) {
+            _showSnack('Introduce un valor entre 0 y 100', isError: true);
+            return;
+          }
+          Navigator.pop(ctx);
+          final updated = await pedidoService.updatePedido(
+            idCliente: widget.pedido.idCliente,
+            idPedido: widget.pedido.id,
+            iva: value,
+          );
+          if (updated != null) {
+            _showSnack('IVA actualizado');
+            await _refreshPedido();
+          } else {
+            _showSnack('Error al actualizar el IVA', isError: true);
+          }
+        },
+        confirmLabel: 'Guardar',
+      ),
+    );
+  }
+
   void _confirmCerrarPedido() {
     showDialog(
       context: context,
@@ -1385,6 +1594,7 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
           ctrl: ctrl,
           label: 'Nuevo stock final',
           keyboardType: TextInputType.number,
+          autofocus: true,
         ),
         onConfirm: () async {
           final texto = ctrl.text.trim();
@@ -1413,11 +1623,21 @@ class _PedidoDetailPageState extends State<PedidoDetailPage> {
   }
 
   Future<void> _descargarPedidoPdf() async {
-    final bytes = await PedidoService.descargarPedidoPdf(
-      idCliente: widget.pedido.idCliente,
-      idPedido: widget.pedido.id,
+    final token = widget.pedido.token;
+    if (token == null || token.isEmpty) {
+      _showSnack('El pedido no tiene token público', isError: true);
+      return;
+    }
+    final url = Uri.parse(
+      'https://mi-app-deposito.cloud/pedido/download?token=$token',
     );
-    if (bytes != null) await downloadBytes(bytes, 'PedidoPDF.pdf');
+    //final url = Uri.parse('http://localhost:8080/pedido/download?token=$token');
+
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } else {
+      _showSnack('No se pudo abrir el enlace', isError: true);
+    }
   }
 
   void _clonarPedido(BuildContext context) {
@@ -1720,10 +1940,12 @@ class _SimpleField extends StatelessWidget {
   final TextEditingController ctrl;
   final String label;
   final TextInputType keyboardType;
+  final bool autofocus;
   const _SimpleField({
     required this.ctrl,
     required this.label,
     this.keyboardType = TextInputType.text,
+    this.autofocus = false,
   });
 
   @override
@@ -1731,6 +1953,7 @@ class _SimpleField extends StatelessWidget {
     return TextField(
       controller: ctrl,
       keyboardType: keyboardType,
+      autofocus: autofocus,
       style: GoogleFonts.poppins(fontSize: 14, color: _textPrimary),
       decoration: InputDecoration(
         labelText: label,
@@ -1876,9 +2099,17 @@ class _FinItem {
   final String label;
   final String value;
   final Color color;
+  final Color accentColor;
   final String? sub;
   final bool bold;
-  _FinItem(this.label, this.value, this.color, {this.sub, this.bold = false});
+  _FinItem(
+    this.label,
+    this.value,
+    this.color, {
+    required this.accentColor,
+    this.sub,
+    this.bold = false,
+  });
 }
 
 // ─────────────────────────────────────────────

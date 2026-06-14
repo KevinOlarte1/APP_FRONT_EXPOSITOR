@@ -27,6 +27,8 @@ const _warning = Color(0xFFF59E0B);
 const _warningLight = Color(0xFFFFFBEB);
 const _error = Color(0xFFEF4444);
 
+enum _PedidoFiltro { todos, abiertos, cerrados }
+
 class ClienteDetailsPage extends StatefulWidget {
   final Cliente cliente;
 
@@ -46,6 +48,8 @@ class _ClienteDetailsPageState extends State<ClienteDetailsPage>
   late Future<Vendedor?> _futureVendedor;
   late Future<List<Pedido>> _futurePedidos;
   late Cliente _cliente;
+
+  _PedidoFiltro _filtro = _PedidoFiltro.todos;
 
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
@@ -388,11 +392,20 @@ class _ClienteDetailsPageState extends State<ClienteDetailsPage>
         final abiertos = pedidos.where((p) => !p.cerrado).length;
         final cerrados = pedidos.where((p) => p.cerrado).length;
 
+        final filtrados = switch (_filtro) {
+          _PedidoFiltro.abiertos => pedidos.where((p) => !p.cerrado).toList(),
+          _PedidoFiltro.cerrados => pedidos.where((p) => p.cerrado).toList(),
+          _PedidoFiltro.todos => pedidos,
+        };
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Section header
-            Row(
+            // Section header + filter chips
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 Text(
                   'Pedidos',
@@ -402,25 +415,32 @@ class _ClienteDetailsPageState extends State<ClienteDetailsPage>
                     color: _textPrimary,
                   ),
                 ),
-                const SizedBox(width: 12),
-                if (abiertos > 0)
-                  _Badge(
-                    label: '$abiertos abiertos',
-                    color: _warning,
-                    bg: _warningLight,
-                  ),
-                if (abiertos > 0 && cerrados > 0) const SizedBox(width: 8),
-                if (cerrados > 0)
-                  _Badge(
-                    label: '$cerrados cerrados',
-                    color: _success,
-                    bg: _successLight,
-                  ),
+                _FilterChip(
+                  label: 'Todos',
+                  count: pedidos.length,
+                  selected: _filtro == _PedidoFiltro.todos,
+                  color: _primary,
+                  onTap: () => setState(() => _filtro = _PedidoFiltro.todos),
+                ),
+                _FilterChip(
+                  label: 'Abiertos',
+                  count: abiertos,
+                  selected: _filtro == _PedidoFiltro.abiertos,
+                  color: _warning,
+                  onTap: () => setState(() => _filtro = _PedidoFiltro.abiertos),
+                ),
+                _FilterChip(
+                  label: 'Cerrados',
+                  count: cerrados,
+                  selected: _filtro == _PedidoFiltro.cerrados,
+                  color: _success,
+                  onTap: () => setState(() => _filtro = _PedidoFiltro.cerrados),
+                ),
               ],
             ),
             const SizedBox(height: 14),
 
-            if (pedidos.isEmpty)
+            if (filtrados.isEmpty)
               _buildEmptyPedidos()
             else
               LayoutBuilder(
@@ -435,16 +455,16 @@ class _ClienteDetailsPageState extends State<ClienteDetailsPage>
                     return ListView.separated(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      itemCount: pedidos.length,
+                      itemCount: filtrados.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 10),
                       itemBuilder: (_, i) => _PedidoCard(
-                        pedido: pedidos[i],
+                        pedido: filtrados[i],
                         onTap: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (_) =>
-                                  PedidoDetailPage(pedido: pedidos[i]),
+                                  PedidoDetailPage(pedido: filtrados[i]),
                             ),
                           ).then((_) => _reloadPedidos());
                         },
@@ -461,15 +481,15 @@ class _ClienteDetailsPageState extends State<ClienteDetailsPage>
                       mainAxisSpacing: 12,
                       mainAxisExtent: 252,
                     ),
-                    itemCount: pedidos.length,
+                    itemCount: filtrados.length,
                     itemBuilder: (_, i) => _PedidoCard(
-                      pedido: pedidos[i],
+                      pedido: filtrados[i],
                       onTap: () {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (_) =>
-                                PedidoDetailPage(pedido: pedidos[i]),
+                                PedidoDetailPage(pedido: filtrados[i]),
                           ),
                         ).then((_) => _reloadPedidos());
                       },
@@ -782,6 +802,73 @@ class _ClienteDetailsPageState extends State<ClienteDetailsPage>
                   ),
                 ),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+//  FILTER CHIP
+// ─────────────────────────────────────────────
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final int count;
+  final bool selected;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _FilterChip({
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected ? color.withOpacity(0.12) : _surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected ? color : _border,
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: selected ? color : _textSecondary,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: selected ? color : _border,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                '$count',
+                style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: selected ? Colors.white : _textSecondary,
+                ),
+              ),
             ),
           ],
         ),

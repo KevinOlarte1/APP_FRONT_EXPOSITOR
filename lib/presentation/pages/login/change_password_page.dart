@@ -2,6 +2,7 @@ import 'package:expositor_app/core/session/session.dart';
 import 'package:expositor_app/data/services/auth_service.dart';
 import 'package:expositor_app/data/services/vendedor_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:expositor_app/core/constants/app_colors.dart';
 import '../../../data/dto/login_request.dart';
 import '../../../data/dto/login_response.dart';
@@ -68,7 +69,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
       if (loginResponse != null) {
         setState(() => _isLoading = false);
-
+        TextInput.finishAutofillContext();
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
@@ -118,31 +119,39 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
               icon: Icons.lock_reset_outlined,
             ),
             const SizedBox(height: 32),
-            AuthTextField(
-              controller: newPass,
-              label: 'Nueva contraseña',
-              obscure: _obscure1,
-              suffix: IconButton(
-                icon: Icon(
-                  _obscure1
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                ),
-                onPressed: () => setState(() => _obscure1 = !_obscure1),
-              ),
-            ),
-            const SizedBox(height: 16),
-            AuthTextField(
-              controller: confirmPass,
-              label: 'Confirmar contraseña',
-              obscure: _obscure2,
-              suffix: IconButton(
-                icon: Icon(
-                  _obscure2
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                ),
-                onPressed: () => setState(() => _obscure2 = !_obscure2),
+            AutofillGroup(
+              child: Column(
+                children: [
+                  AuthTextField(
+                    controller: newPass,
+                    label: 'Nueva contraseña',
+                    obscure: _obscure1,
+                    autofillHints: const [AutofillHints.newPassword],
+                    suffix: IconButton(
+                      icon: Icon(
+                        _obscure1
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                      ),
+                      onPressed: () => setState(() => _obscure1 = !_obscure1),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  AuthTextField(
+                    controller: confirmPass,
+                    label: 'Confirmar contraseña',
+                    obscure: _obscure2,
+                    autofillHints: const [AutofillHints.newPassword],
+                    suffix: IconButton(
+                      icon: Icon(
+                        _obscure2
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                      ),
+                      onPressed: () => setState(() => _obscure2 = !_obscure2),
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 16),

@@ -1,10 +1,7 @@
 import 'dart:convert';
 import 'package:expositor_app/core/constants/api_constants.dart';
-import 'package:expositor_app/core/session/session.dart';
 import 'package:expositor_app/data/models/pedido.dart';
 import 'package:expositor_app/data/services/http_client_jwt.dart';
-import 'dart:typed_data';
-import 'package:http/http.dart' as http;
 
 class PedidoService {
   /// Crear un nuevo pedido
@@ -68,22 +65,38 @@ class PedidoService {
   Future<Pedido?> updatePedido({
     required int idCliente,
     required int idPedido,
-    required int descuento,
-    required int iva,
+    String? fecha,
+    int? descuento,
+    int? iva,
+    String? comentario,
   }) async {
     final url = Uri.parse(
       "${ApiConstants.clientes}/$idCliente/pedido/$idPedido",
     );
 
-    final body = jsonEncode({"descuento": descuento, "iva": iva});
+    final Map<String, dynamic> map = {};
+    if (fecha != null) map['fecha'] = fecha;
+    if (descuento != null) map['descuento'] = descuento;
+    if (iva != null) map['iva'] = iva;
+    if (comentario != null) map['comentario'] = comentario;
 
-    final response = await HttpClientJwt.put(url, body: body);
+    final response = await HttpClientJwt.put(url, body: jsonEncode(map));
 
     if (response.statusCode == 200) {
       return Pedido.fromJson(jsonDecode(response.body));
     }
 
     return null;
+  }
+
+  Future<bool> reabrirPedido(int idCliente, int idPedido) async {
+    final url = Uri.parse(
+      "${ApiConstants.clientes}/$idCliente/pedido/$idPedido/reabrir",
+    );
+
+    final response = await HttpClientJwt.put(url);
+
+    return response.statusCode == 200;
   }
 
   Future<bool> cerrarPedido(int idCliente, int idPedido) async {
@@ -96,46 +109,4 @@ class PedidoService {
     return response.statusCode == 200;
   }
 
-  static Future<Uint8List?> descargarPedidoPdf({
-    required int idCliente,
-    required int idPedido,
-  }) async {
-    final url = Uri.parse(
-      "${ApiConstants.clientes}/$idCliente/pedido/$idPedido/pdf",
-    );
-
-    final response = await http.get(
-      url,
-      headers: {
-        "Authorization": "Bearer ${Session.token}",
-        "Accept": "application/pdf",
-      },
-    );
-
-    if (response.statusCode == 200) {
-      return response.bodyBytes; // 🔥 AQUÍ están los bytes del PDF
-    } else {
-      print("❌ Error PDF: ${response.statusCode}");
-      return null;
-    }
-  }
-
-  Future<bool> putComentario({
-    required int idCliente,
-    required int idPedido,
-    required String comentario,
-  }) async {
-    final url = Uri.parse(
-      "${ApiConstants.clientes}/$idCliente/pedido/$idPedido",
-    );
-
-    final body = jsonEncode({"comentario": comentario});
-    try {
-      final response = await HttpClientJwt.put(url, body: body);
-
-      return response.statusCode >= 200 && response.statusCode < 300;
-    } catch (e) {
-      return false;
-    }
-  }
 }

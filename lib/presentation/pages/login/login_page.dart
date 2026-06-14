@@ -1,6 +1,7 @@
 import 'package:expositor_app/core/constants/api_constants.dart';
 import 'package:expositor_app/core/session/session.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:expositor_app/core/constants/app_colors.dart';
@@ -47,6 +48,7 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = false);
 
     if (response != null && context.mounted) {
+      TextInput.finishAutofillContext();
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -75,24 +77,32 @@ class _LoginPageState extends State<LoginPage> {
             ),
             const SizedBox(height: 32),
 
-            AuthTextField(
-              controller: emailController,
-              label: 'Correo electrónico',
-            ),
-            const SizedBox(height: 16),
-
-            AuthTextField(
-              controller: passwordController,
-              label: 'Contraseña',
-              obscure: _obscure,
-              suffix: IconButton(
-                icon: Icon(
-                  _obscure
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                  color: Colors.black54,
-                ),
-                onPressed: () => setState(() => _obscure = !_obscure),
+            AutofillGroup(
+              child: Column(
+                children: [
+                  AuthTextField(
+                    controller: emailController,
+                    label: 'Correo electrónico',
+                    autofillHints: const [AutofillHints.email],
+                    keyboardType: TextInputType.emailAddress,
+                  ),
+                  const SizedBox(height: 16),
+                  AuthTextField(
+                    controller: passwordController,
+                    label: 'Contraseña',
+                    obscure: _obscure,
+                    autofillHints: const [AutofillHints.password],
+                    suffix: IconButton(
+                      icon: Icon(
+                        _obscure
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        color: Colors.black54,
+                      ),
+                      onPressed: () => setState(() => _obscure = !_obscure),
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 12),
