@@ -1,5 +1,6 @@
 import 'package:expositor_app/core/constants/api_constants.dart';
 import 'package:expositor_app/core/session/session.dart';
+import 'package:expositor_app/core/utils/credentials_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -49,6 +50,7 @@ class _LoginPageState extends State<LoginPage> {
 
     if (response != null && context.mounted) {
       TextInput.finishAutofillContext();
+      await saveCredentials(emailController.text.trim(), passwordController.text.trim());
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
