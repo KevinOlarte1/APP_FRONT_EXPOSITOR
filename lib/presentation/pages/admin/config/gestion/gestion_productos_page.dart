@@ -1,33 +1,34 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:expositor_app/data/models/cliente.dart';
-import 'package:expositor_app/data/models/vendedor.dart';
-import 'package:expositor_app/data/services/cliente_service.dart';
-import 'package:expositor_app/data/services/vendedor_service.dart';
+import 'package:expositor_app/data/models/producto.dart';
+import 'package:expositor_app/data/models/categoria.dart';
+import 'package:expositor_app/data/services/producto_service.dart';
+import 'package:expositor_app/data/services/categoria_service.dart';
 
-class GestionClientesPage extends StatefulWidget {
-  const GestionClientesPage({super.key});
+const _kAccent = Color(0xFFF59E0B);
+
+class GestionProductosPage extends StatefulWidget {
+  const GestionProductosPage({super.key});
 
   @override
-  State<GestionClientesPage> createState() => _GestionClientesPageState();
+  State<GestionProductosPage> createState() => _GestionProductosPageState();
 }
 
-class _GestionClientesPageState extends State<GestionClientesPage> {
-  final ClienteService _clienteService = ClienteService();
-  final VendedorService _vendedorService = VendedorService();
+class _GestionProductosPageState extends State<GestionProductosPage> {
+  final ProductoService _productoService = ProductoService();
+  final CategoriaService _categoriaService = CategoriaService();
   final TextEditingController _searchController = TextEditingController();
 
-  List<Cliente> _clientes = [];
-  List<Cliente> _clientesFiltrados = [];
-  List<Vendedor> _vendedores = [];
+  List<Producto> _productos = [];
+  List<Producto> _productosFiltrados = [];
+  List<Categoria> _categorias = [];
   bool _isLoading = true;
-  bool _hayCambios = false;
 
   @override
   void initState() {
     super.initState();
     _cargarDatos();
-    _searchController.addListener(_filtrarClientes);
+    _searchController.addListener(_filtrarProductos);
   }
 
   @override
@@ -39,64 +40,50 @@ class _GestionClientesPageState extends State<GestionClientesPage> {
   Future<void> _cargarDatos() async {
     setState(() => _isLoading = true);
     final results = await Future.wait([
-      _clienteService.getAllClientes(),
-      _vendedorService.getVendedores(),
+      _productoService.getAllProductos(),
+      _categoriaService.getCategorias(),
     ]);
     setState(() {
-      _clientes = results[0] as List<Cliente>;
-      _clientesFiltrados = _clientes;
-      _vendedores = results[1] as List<Vendedor>;
+      _productos = results[0] as List<Producto>;
+      _productosFiltrados = _productos;
+      _categorias = results[1] as List<Categoria>;
       _isLoading = false;
     });
   }
 
-  void _filtrarClientes() {
+  void _filtrarProductos() {
     final query = _searchController.text.toLowerCase().trim();
     setState(() {
       if (query.isEmpty) {
-        _clientesFiltrados = _clientes;
+        _productosFiltrados = _productos;
       } else {
-        _clientesFiltrados = _clientes.where((c) {
-          return c.nombre.toLowerCase().contains(query) ||
-              c.cif.toLowerCase().contains(query) ||
-              c.email.toLowerCase().contains(query) ||
-              (c.telefono?.toLowerCase().contains(query) ?? false);
+        _productosFiltrados = _productos.where((p) {
+          return p.descripcion.toLowerCase().contains(query) ||
+              (p.categoria?.toLowerCase().contains(query) ?? false);
         }).toList();
       }
     });
   }
 
-  String _getNombreVendedor(int? idVendedor) {
-    if (idVendedor == null) return 'Sin asignar';
-    final vendedor = _vendedores.firstWhere(
-      (v) => v.id == idVendedor,
-      orElse: () => Vendedor(
-        id: 0,
-        nombre: 'Desconocido',
-        apellido: '',
-        email: '',
-        role: 'desc',
-      ),
+  String _getNombreCategoria(int id) {
+    final cat = _categorias.firstWhere(
+      (c) => c.id == id,
+      orElse: () => Categoria(id: 0, nombre: 'Desconocida'),
     );
-    return '${vendedor.nombre} ${vendedor.apellido}'.trim();
+    return cat.nombre;
   }
 
-  void _mostrarDialogoCrear() {
-    _showClienteDialog(null);
-  }
+  void _mostrarDialogoCrear() => _showProductoDialog(null);
+  void _mostrarDialogoEditar(Producto p) => _showProductoDialog(p);
 
-  void _mostrarDialogoEditar(Cliente cliente) {
-    _showClienteDialog(cliente);
-  }
-
-  void _showClienteDialog(Cliente? cliente) {
-    final nombreController = TextEditingController(text: cliente?.nombre ?? '');
-    final cifController = TextEditingController(text: cliente?.cif ?? '');
-    final telefonoController = TextEditingController(
-      text: cliente?.telefono ?? '',
+  void _showProductoDialog(Producto? producto) {
+    final descripcionCtrl = TextEditingController(
+      text: producto?.descripcion ?? '',
     );
-    final emailController = TextEditingController(text: cliente?.email ?? '');
-    int? selectedVendedorId = cliente?.idVendedor;
+    final precioCtrl = TextEditingController(
+      text: producto != null ? producto.precio.toStringAsFixed(2) : '',
+    );
+    int? selectedCategoriaId = producto?.categoriaId;
     bool isSaving = false;
 
     showDialog(
@@ -112,19 +99,19 @@ class _GestionClientesPageState extends State<GestionClientesPage> {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEC4899).withOpacity(0.12),
+                  color: _kAccent.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 alignment: Alignment.center,
                 child: const Icon(
-                  Icons.person_rounded,
-                  color: Color(0xFFEC4899),
+                  Icons.inventory_2_rounded,
+                  color: _kAccent,
                   size: 24,
                 ),
               ),
               const SizedBox(width: 14),
               Text(
-                cliente == null ? 'Nuevo Cliente' : 'Editar Cliente',
+                producto == null ? 'Nuevo Producto' : 'Editar Producto',
                 style: GoogleFonts.poppins(
                   fontSize: 20,
                   fontWeight: FontWeight.w600,
@@ -134,44 +121,32 @@ class _GestionClientesPageState extends State<GestionClientesPage> {
             ],
           ),
           content: SizedBox(
-            width: 420,
+            width: 400,
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _DialogField(
-                    label: 'Nombre',
-                    controller: nombreController,
-                    hint: 'Nombre del cliente o empresa',
-                    icon: Icons.business_rounded,
+                    label: 'Descripcion',
+                    controller: descripcionCtrl,
+                    hint: 'Nombre o descripcion del producto',
+                    icon: Icons.label_outline_rounded,
+                    autofocus: true,
                   ),
                   const SizedBox(height: 16),
                   _DialogField(
-                    label: 'CIF / NIF',
-                    controller: cifController,
-                    hint: 'Ej: B12345678',
-                    icon: Icons.badge_outlined,
-                  ),
-                  const SizedBox(height: 16),
-                  _DialogField(
-                    label: 'Telefono',
-                    controller: telefonoController,
-                    hint: 'Ej: 612345678',
-                    icon: Icons.phone_outlined,
-                    keyboardType: TextInputType.phone,
-                  ),
-                  const SizedBox(height: 16),
-                  _DialogField(
-                    label: 'Email',
-                    controller: emailController,
-                    hint: 'correo@ejemplo.com',
-                    icon: Icons.email_outlined,
-                    keyboardType: TextInputType.emailAddress,
+                    label: 'Precio (€)',
+                    controller: precioCtrl,
+                    hint: 'Ej: 9.99',
+                    icon: Icons.euro_rounded,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Vendedor Asignado',
+                    'Categoria',
                     style: GoogleFonts.poppins(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -188,40 +163,29 @@ class _GestionClientesPageState extends State<GestionClientesPage> {
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<int?>(
-                        value: selectedVendedorId,
+                        value: selectedCategoriaId,
                         isExpanded: true,
                         hint: Text(
-                          'Seleccionar vendedor',
+                          'Seleccionar categoria',
                           style: GoogleFonts.poppins(
                             color: const Color(0xFF9CA3AF),
                             fontSize: 14,
                           ),
                         ),
                         icon: const Icon(Icons.keyboard_arrow_down_rounded),
-                        items: [
-                          DropdownMenuItem<int?>(
-                            value: null,
-                            child: Text(
-                              'Sin asignar',
-                              style: GoogleFonts.poppins(
-                                fontSize: 14,
-                                color: const Color(0xFF6B7280),
+                        items: _categorias
+                            .map(
+                              (c) => DropdownMenuItem<int?>(
+                                value: c.id,
+                                child: Text(
+                                  c.nombre,
+                                  style: GoogleFonts.poppins(fontSize: 14),
+                                ),
                               ),
-                            ),
-                          ),
-                          ..._vendedores.map(
-                            (v) => DropdownMenuItem<int?>(
-                              value: v.id,
-                              child: Text(
-                                '${v.nombre} ${v.apellido}',
-                                style: GoogleFonts.poppins(fontSize: 14),
-                              ),
-                            ),
-                          ),
-                        ],
-                        onChanged: (value) {
-                          setDialogState(() => selectedVendedorId = value);
-                        },
+                            )
+                            .toList(),
+                        onChanged: (value) =>
+                            setDialogState(() => selectedCategoriaId = value),
                       ),
                     ),
                   ),
@@ -235,7 +199,7 @@ class _GestionClientesPageState extends State<GestionClientesPage> {
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context, _hayCambios),
+                    onPressed: () => Navigator.pop(context),
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size.fromHeight(48),
                       side: const BorderSide(color: Color(0xFFE5E7EB)),
@@ -258,14 +222,29 @@ class _GestionClientesPageState extends State<GestionClientesPage> {
                     onPressed: isSaving
                         ? null
                         : () async {
-                            final nombre = nombreController.text.trim();
-                            final cif = cifController.text.trim();
-                            final telefono = telefonoController.text.trim();
-                            final email = emailController.text.trim();
+                            final descripcion = descripcionCtrl.text.trim();
+                            final precioText = precioCtrl.text
+                                .trim()
+                                .replaceAll(',', '.');
+                            final precio = double.tryParse(precioText);
 
-                            if (nombre.isEmpty || cif.isEmpty) {
+                            if (descripcion.isEmpty) {
                               _mostrarSnackBar(
-                                'Nombre y CIF son obligatorios',
+                                'La descripcion es obligatoria',
+                                isError: true,
+                              );
+                              return;
+                            }
+                            if (precio == null || precio < 0) {
+                              _mostrarSnackBar(
+                                'El precio no es valido',
+                                isError: true,
+                              );
+                              return;
+                            }
+                            if (selectedCategoriaId == null) {
+                              _mostrarSnackBar(
+                                'Selecciona una categoria',
                                 isError: true,
                               );
                               return;
@@ -274,60 +253,36 @@ class _GestionClientesPageState extends State<GestionClientesPage> {
                             setDialogState(() => isSaving = true);
                             Navigator.pop(context);
 
-                            if (cliente == null) {
-                              // Crear nuevo
-                              final nuevo = await _clienteService.addCliente(
-                                nombre,
-                                cif,
-                                selectedVendedorId,
-                                telefono,
-                                email,
+                            final p = Producto(
+                              id: producto?.id ?? 0,
+                              descripcion: descripcion,
+                              precio: precio,
+                              categoriaId: selectedCategoriaId!,
+                            );
+
+                            bool ok;
+                            if (producto == null) {
+                              ok = await _productoService.createProducto(p);
+                              _mostrarSnackBar(
+                                ok
+                                    ? 'Producto creado correctamente'
+                                    : 'Error al crear el producto',
+                                isError: !ok,
                               );
-                              if (nuevo != null) {
-                                _hayCambios = true;
-                                await _cargarDatos();
-                                _mostrarSnackBar(
-                                  'Cliente creado correctamente',
-                                );
-                              } else {
-                                _mostrarSnackBar(
-                                  'Error al crear el cliente',
-                                  isError: true,
-                                );
-                              }
                             } else {
-                              // Actualizar
-                              final actualizado = Cliente(
-                                id: cliente.id,
-                                nombre: nombre,
-                                cif: cif,
-                                telefono: telefono,
-                                email: email,
-                                idVendedor:
-                                    selectedVendedorId ?? cliente.idVendedor,
-                                idPedidos: cliente.idPedidos,
-                                pedidosAbiertos: cliente.pedidosAbiertos,
-                                pedidosCerrados: cliente.pedidosCerrados,
+                              ok = await _productoService.updateProducto(p);
+                              _mostrarSnackBar(
+                                ok
+                                    ? 'Producto actualizado correctamente'
+                                    : 'Error al actualizar el producto',
+                                isError: !ok,
                               );
-                              final result = await _clienteService.update(
-                                actualizado,
-                              );
-                              if (result != null) {
-                                _hayCambios = true;
-                                await _cargarDatos();
-                                _mostrarSnackBar(
-                                  'Cliente actualizado correctamente',
-                                );
-                              } else {
-                                _mostrarSnackBar(
-                                  'Error al actualizar el cliente',
-                                  isError: true,
-                                );
-                              }
                             }
+
+                            if (ok) await _cargarDatos();
                           },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFEC4899),
+                      backgroundColor: _kAccent,
                       minimumSize: const Size.fromHeight(48),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -343,7 +298,7 @@ class _GestionClientesPageState extends State<GestionClientesPage> {
                             ),
                           )
                         : Text(
-                            cliente == null ? 'Crear' : 'Guardar',
+                            producto == null ? 'Crear' : 'Guardar',
                             style: GoogleFonts.poppins(
                               fontWeight: FontWeight.w600,
                               color: Colors.white,
@@ -355,6 +310,68 @@ class _GestionClientesPageState extends State<GestionClientesPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _confirmarEliminar(Producto producto) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Eliminar Producto',
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF1F2937),
+          ),
+        ),
+        content: Text(
+          '¿Estas seguro de que deseas eliminar "${producto.descripcion}"?\n\nEsta accion no se puede deshacer.',
+          style: GoogleFonts.poppins(
+            fontSize: 14,
+            color: const Color(0xFF6B7280),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Cancelar',
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF6B7280),
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final ok = await _productoService.deleteProducto(producto.id);
+              _mostrarSnackBar(
+                ok
+                    ? 'Producto eliminado correctamente'
+                    : 'Error al eliminar el producto',
+                isError: !ok,
+              );
+              if (ok) await _cargarDatos();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            ),
+            child: Text(
+              'Eliminar',
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -404,7 +421,7 @@ class _GestionClientesPageState extends State<GestionClientesPage> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Gestion de Clientes',
+          'Gestion de Productos',
           style: GoogleFonts.poppins(
             fontSize: 20,
             fontWeight: FontWeight.w600,
@@ -417,29 +434,26 @@ class _GestionClientesPageState extends State<GestionClientesPage> {
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1100),
+            constraints: const BoxConstraints(maxWidth: 860),
             child: Column(
               children: [
-                // Header Card
                 _HeaderCard(
-                  totalClientes: _clientes.length,
+                  total: _productos.length,
                   onCrear: _mostrarDialogoCrear,
                 ),
                 const SizedBox(height: 20),
-
-                // Search Bar
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(22),
                     border: Border.all(color: const Color(0xFFE8EDF3)),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6),
+                        color: Colors.black.withOpacity(0.06),
+                        blurRadius: 28,
+                        offset: const Offset(0, 12),
                       ),
                     ],
                   ),
@@ -453,8 +467,7 @@ class _GestionClientesPageState extends State<GestionClientesPage> {
                           color: const Color(0xFF111827),
                         ),
                         decoration: InputDecoration(
-                          hintText:
-                              'Buscar por nombre, CIF, email o telefono...',
+                          hintText: 'Buscar por descripcion o categoria...',
                           hintStyle: GoogleFonts.poppins(
                             color: const Color(0xFF9CA3AF),
                             fontSize: 14,
@@ -477,69 +490,51 @@ class _GestionClientesPageState extends State<GestionClientesPage> {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFEC4899),
-                            ),
+                            borderSide: const BorderSide(color: _kAccent),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 20),
                       Text(
-                        '${_clientesFiltrados.length} clientes encontrados',
+                        '${_productosFiltrados.length} productos encontrados',
                         style: GoogleFonts.poppins(
                           fontSize: 13,
                           color: const Color(0xFF6B7280),
                         ),
                       ),
+                      const SizedBox(height: 16),
+                      if (_isLoading)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 60),
+                          child: Center(child: CircularProgressIndicator()),
+                        )
+                      else if (_productosFiltrados.isEmpty)
+                        _EmptyState(
+                          isSearching: _searchController.text.isNotEmpty,
+                          onCrear: _mostrarDialogoCrear,
+                        )
+                      else
+                        ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _productosFiltrados.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final p = _productosFiltrados[index];
+                            return _ProductoItem(
+                              producto: p,
+                              categoriaNombre: _getNombreCategoria(
+                                p.categoriaId,
+                              ),
+                              onEditar: () => _mostrarDialogoEditar(p),
+                              onEliminar: () => _confirmarEliminar(p),
+                            );
+                          },
+                        ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 20),
-
-                // Grid de tarjetas
-                if (_isLoading)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 60),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                else if (_clientesFiltrados.isEmpty)
-                  _EmptyState(
-                    isSearching: _searchController.text.isNotEmpty,
-                    onCrear: _mostrarDialogoCrear,
-                  )
-                else
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      int crossAxisCount = 1;
-                      if (constraints.maxWidth > 800) {
-                        crossAxisCount = 3;
-                      } else if (constraints.maxWidth > 500) {
-                        crossAxisCount = 2;
-                      }
-
-                      return GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: crossAxisCount,
-                          crossAxisSpacing: 16,
-                          mainAxisSpacing: 16,
-                          childAspectRatio: 1.35,
-                        ),
-                        itemCount: _clientesFiltrados.length,
-                        itemBuilder: (context, index) {
-                          final cliente = _clientesFiltrados[index];
-                          return _ClienteCard(
-                            cliente: cliente,
-                            vendedorNombre: _getNombreVendedor(
-                              cliente.idVendedor,
-                            ),
-                            onDoubleTap: () => _mostrarDialogoEditar(cliente),
-                          );
-                        },
-                      );
-                    },
-                  ),
               ],
             ),
           ),
@@ -552,10 +547,10 @@ class _GestionClientesPageState extends State<GestionClientesPage> {
 // ============== HEADER CARD ==============
 
 class _HeaderCard extends StatelessWidget {
-  final int totalClientes;
+  final int total;
   final VoidCallback onCrear;
 
-  const _HeaderCard({required this.totalClientes, required this.onCrear});
+  const _HeaderCard({required this.total, required this.onCrear});
 
   @override
   Widget build(BuildContext context) {
@@ -582,14 +577,14 @@ class _HeaderCard extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               gradient: const LinearGradient(
-                colors: [Color(0xFFEC4899), Color(0xFFDB2777)],
+                colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
             ),
             alignment: Alignment.center,
             child: const Icon(
-              Icons.people_alt_rounded,
+              Icons.inventory_2_rounded,
               color: Colors.white,
               size: 26,
             ),
@@ -602,7 +597,7 @@ class _HeaderCard extends StatelessWidget {
                 Row(
                   children: [
                     Text(
-                      'Clientes',
+                      'Productos',
                       style: GoogleFonts.poppins(
                         fontSize: 22,
                         fontWeight: FontWeight.w700,
@@ -616,15 +611,15 @@ class _HeaderCard extends StatelessWidget {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFEC4899).withOpacity(0.12),
+                        color: _kAccent.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        '$totalClientes',
+                        '$total',
                         style: GoogleFonts.poppins(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: const Color(0xFFEC4899),
+                          color: _kAccent,
                         ),
                       ),
                     ),
@@ -632,7 +627,7 @@ class _HeaderCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Doble clic en una tarjeta para editar el cliente.',
+                  'Doble clic en un producto para editarlo.',
                   style: GoogleFonts.poppins(
                     fontSize: 13.5,
                     color: const Color(0xFF6B7280),
@@ -650,7 +645,7 @@ class _HeaderCard extends StatelessWidget {
               style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
             ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEC4899),
+              backgroundColor: _kAccent,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               shape: RoundedRectangleBorder(
@@ -665,24 +660,26 @@ class _HeaderCard extends StatelessWidget {
   }
 }
 
-// ============== CLIENTE CARD ==============
+// ============== PRODUCTO ITEM ==============
 
-class _ClienteCard extends StatefulWidget {
-  final Cliente cliente;
-  final String vendedorNombre;
-  final VoidCallback onDoubleTap;
+class _ProductoItem extends StatefulWidget {
+  final Producto producto;
+  final String categoriaNombre;
+  final VoidCallback onEditar;
+  final VoidCallback onEliminar;
 
-  const _ClienteCard({
-    required this.cliente,
-    required this.vendedorNombre,
-    required this.onDoubleTap,
+  const _ProductoItem({
+    required this.producto,
+    required this.categoriaNombre,
+    required this.onEditar,
+    required this.onEliminar,
   });
 
   @override
-  State<_ClienteCard> createState() => _ClienteCardState();
+  State<_ProductoItem> createState() => _ProductoItemState();
 }
 
-class _ClienteCardState extends State<_ClienteCard> {
+class _ProductoItemState extends State<_ProductoItem> {
   bool _isHovered = false;
 
   @override
@@ -691,150 +688,113 @@ class _ClienteCardState extends State<_ClienteCard> {
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: GestureDetector(
-        onDoubleTap: widget.onDoubleTap,
+        onDoubleTap: widget.onEditar,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
+            color: _isHovered
+                ? _kAccent.withOpacity(0.04)
+                : const Color(0xFFF9FAFB),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: _isHovered
-                  ? const Color(0xFFEC4899).withOpacity(0.4)
-                  : const Color(0xFFE8EDF3),
-              width: _isHovered ? 2 : 1,
+                  ? _kAccent.withOpacity(0.35)
+                  : const Color(0xFFE5E7EB),
+              width: 1.5,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: _isHovered
-                    ? const Color(0xFFEC4899).withOpacity(0.12)
-                    : Colors.black.withOpacity(0.04),
-                blurRadius: _isHovered ? 20 : 12,
-                offset: const Offset(0, 6),
-              ),
-            ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEC4899).withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      widget.cliente.nombre.isNotEmpty
-                          ? widget.cliente.nombre[0].toUpperCase()
-                          : '?',
-                      style: GoogleFonts.poppins(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFFEC4899),
-                      ),
-                    ),
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: _kAccent.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  widget.producto.descripcion.isNotEmpty
+                      ? widget.producto.descripcion[0].toUpperCase()
+                      : '?',
+                  style: GoogleFonts.poppins(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: _kAccent,
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.producto.descripcion,
+                      style: GoogleFonts.poppins(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF1F2937),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
                       children: [
-                        Text(
-                          widget.cliente.nombre,
-                          style: GoogleFonts.poppins(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF1F2937),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                          decoration: BoxDecoration(
+                            color: _kAccent.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            widget.categoriaNombre,
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: _kAccent,
+                            ),
+                          ),
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(width: 8),
                         Text(
-                          widget.cliente.cif,
+                          'ID: ${widget.producto.id}',
                           style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            color: const Color(0xFF6B7280),
-                            fontWeight: FontWeight.w500,
+                            fontSize: 11,
+                            color: const Color(0xFF9CA3AF),
                           ),
                         ),
                       ],
                     ),
-                  ),
-                  if (_isHovered)
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEC4899).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.edit_outlined,
-                        size: 18,
-                        color: Color(0xFFEC4899),
-                      ),
-                    ),
-                ],
-              ),
-              const Spacer(),
-              _InfoRow(
-                icon: Icons.email_outlined,
-                value: widget.cliente.email.isNotEmpty
-                    ? widget.cliente.email
-                    : 'Sin email',
-                isPlaceholder: widget.cliente.email.isEmpty,
-              ),
-              const SizedBox(height: 8),
-              _InfoRow(
-                icon: Icons.phone_outlined,
-                value: widget.cliente.telefono?.isNotEmpty == true
-                    ? widget.cliente.telefono!
-                    : 'Sin telefono',
-                isPlaceholder: widget.cliente.telefono?.isEmpty ?? true,
-              ),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: widget.cliente.idVendedor != null
-                      ? const Color(0xFF10B981).withOpacity(0.1)
-                      : const Color(0xFFF3F4F6),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.person_outline_rounded,
-                      size: 14,
-                      color: widget.cliente.idVendedor != null
-                          ? const Color(0xFF10B981)
-                          : const Color(0xFF9CA3AF),
-                    ),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        widget.vendedorNombre,
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: widget.cliente.idVendedor != null
-                              ? const Color(0xFF10B981)
-                              : const Color(0xFF9CA3AF),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
                   ],
                 ),
+              ),
+              Text(
+                '${widget.producto.precio.toStringAsFixed(2)} €',
+                style: GoogleFonts.poppins(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF1F2937),
+                ),
+              ),
+              const SizedBox(width: 12),
+              _ActionIconButton(
+                icon: Icons.edit_outlined,
+                color: const Color(0xFF3B82F6),
+                tooltip: 'Editar',
+                onTap: widget.onEditar,
+              ),
+              const SizedBox(width: 8),
+              _ActionIconButton(
+                icon: Icons.delete_outline_rounded,
+                color: const Color(0xFFDC2626),
+                tooltip: 'Eliminar',
+                onTap: widget.onEliminar,
               ),
             ],
           ),
@@ -844,46 +804,59 @@ class _ClienteCardState extends State<_ClienteCard> {
   }
 }
 
-// ============== INFO ROW ==============
+// ============== ACTION ICON BUTTON ==============
 
-class _InfoRow extends StatelessWidget {
+class _ActionIconButton extends StatefulWidget {
   final IconData icon;
-  final String value;
-  final bool isPlaceholder;
+  final Color color;
+  final String tooltip;
+  final VoidCallback onTap;
 
-  const _InfoRow({
+  const _ActionIconButton({
     required this.icon,
-    required this.value,
-    this.isPlaceholder = false,
+    required this.color,
+    required this.tooltip,
+    required this.onTap,
   });
 
   @override
+  State<_ActionIconButton> createState() => _ActionIconButtonState();
+}
+
+class _ActionIconButtonState extends State<_ActionIconButton> {
+  bool _isHovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(
-          icon,
-          size: 14,
-          color: isPlaceholder
-              ? const Color(0xFFD1D5DB)
-              : const Color(0xFF9CA3AF),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            value,
-            style: GoogleFonts.poppins(
-              fontSize: 12.5,
-              color: isPlaceholder
-                  ? const Color(0xFFD1D5DB)
-                  : const Color(0xFF6B7280),
-              fontStyle: isPlaceholder ? FontStyle.italic : FontStyle.normal,
+    return Tooltip(
+      message: widget.tooltip,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: _isHovered
+                  ? widget.color.withOpacity(0.12)
+                  : const Color(0xFFF3F4F6),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: _isHovered
+                    ? widget.color.withOpacity(0.3)
+                    : const Color(0xFFE5E7EB),
+              ),
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+            child: Icon(
+              widget.icon,
+              size: 18,
+              color: _isHovered ? widget.color : const Color(0xFF6B7280),
+            ),
           ),
         ),
-      ],
+      ),
     );
   }
 }
@@ -896,6 +869,7 @@ class _DialogField extends StatelessWidget {
   final String hint;
   final IconData icon;
   final TextInputType keyboardType;
+  final bool autofocus;
 
   const _DialogField({
     required this.label,
@@ -903,6 +877,7 @@ class _DialogField extends StatelessWidget {
     required this.hint,
     required this.icon,
     this.keyboardType = TextInputType.text,
+    this.autofocus = false,
   });
 
   @override
@@ -922,6 +897,7 @@ class _DialogField extends StatelessWidget {
         TextField(
           controller: controller,
           keyboardType: keyboardType,
+          autofocus: autofocus,
           style: GoogleFonts.poppins(
             fontSize: 15,
             color: const Color(0xFF111827),
@@ -945,7 +921,7 @@ class _DialogField extends StatelessWidget {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: Color(0xFFEC4899)),
+              borderSide: const BorderSide(color: _kAccent),
             ),
           ),
         ),
@@ -965,13 +941,7 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE8EDF3)),
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 48),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -986,14 +956,14 @@ class _EmptyState extends StatelessWidget {
             child: Icon(
               isSearching
                   ? Icons.search_off_rounded
-                  : Icons.people_outline_rounded,
+                  : Icons.inventory_2_outlined,
               size: 40,
               color: const Color(0xFF9CA3AF),
             ),
           ),
           const SizedBox(height: 20),
           Text(
-            isSearching ? 'Sin resultados' : 'No hay clientes',
+            isSearching ? 'Sin resultados' : 'No hay productos',
             style: GoogleFonts.poppins(
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -1003,8 +973,8 @@ class _EmptyState extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             isSearching
-                ? 'No se encontraron clientes con esa busqueda.'
-                : 'Crea tu primer cliente para comenzar.',
+                ? 'No se encontraron productos con esa busqueda.'
+                : 'Crea tu primer producto para comenzar.',
             style: GoogleFonts.poppins(
               fontSize: 14,
               color: const Color(0xFF6B7280),
@@ -1017,11 +987,11 @@ class _EmptyState extends StatelessWidget {
               onPressed: onCrear,
               icon: const Icon(Icons.add_rounded, size: 20),
               label: Text(
-                'Crear cliente',
+                'Crear producto',
                 style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFEC4899),
+                backgroundColor: _kAccent,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 24,

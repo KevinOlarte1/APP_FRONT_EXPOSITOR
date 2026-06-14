@@ -4,6 +4,8 @@ import 'package:expositor_app/data/services/categoria_service.dart';
 import 'package:expositor_app/data/services/cliente_service.dart';
 import 'package:expositor_app/data/services/producto_service.dart';
 import 'package:expositor_app/presentation/pages/admin/config/gestion/gestion_clientes_page.dart';
+import 'package:expositor_app/presentation/pages/admin/config/gestion/gestion_productos_page.dart';
+import 'package:expositor_app/presentation/pages/admin/config/gestion/gestion_vendedores_page.dart';
 import 'package:expositor_app/presentation/pages/admin/product_admin_page.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -393,7 +395,7 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
   Future<void> _onTapProductos() async {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const ProductAdminPage()),
+      MaterialPageRoute(builder: (_) => const GestionProductosPage()),
     );
   }
 
@@ -414,7 +416,7 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
   Future<void> _onTapVendedores() async {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const ProductAdminPage()),
+      MaterialPageRoute(builder: (_) => const GestionVendedoresPage()),
     );
   }
 
@@ -506,7 +508,7 @@ class _ConfigVendedorPageState extends State<ConfigVendedorPage> {
                   _SectionCard(
                     icon: Icons.receipt_long_outlined,
                     iconText: 'P',
-                    title: 'Configuración de pedidos',
+                    title: 'EmpresaNameX',
                     subtitle:
                         'Define el IVA y el descuento por defecto para pedidos nuevos.',
                     badgeText: 'Admin',

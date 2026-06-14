@@ -164,4 +164,45 @@ class VendedorService {
     print(response.body);
     return null;
   }
+
+  /// Actualizar vendedor por ID (admin)
+  Future<bool> updateById(
+    int id, {
+    required String nombre,
+    required String apellido,
+    required String email,
+    String? password,
+  }) async {
+    final url = Uri.parse("${ApiConstants.vendedor}/$id");
+
+    final Map<String, dynamic> body = {
+      "nombre": nombre,
+      "apellido": apellido,
+      "email": email,
+    };
+    if (password != null && password.trim().isNotEmpty) {
+      body["password"] = password;
+    }
+
+    final response = await HttpClientJwt.put(url, body: jsonEncode(body));
+
+    if (response.statusCode == 200) return true;
+
+    print("❌ Error updateById: ${response.statusCode}");
+    print(response.body);
+    return false;
+  }
+
+  /// Eliminar vendedor por ID (admin)
+  Future<bool> deleteVendedor(int id) async {
+    final url = Uri.parse("${ApiConstants.vendedor}/$id");
+
+    final response = await HttpClientJwt.delete(url);
+
+    if (response.statusCode == 200 || response.statusCode == 204) return true;
+
+    print("❌ Error deleteVendedor: ${response.statusCode}");
+    print(response.body);
+    return false;
+  }
 }

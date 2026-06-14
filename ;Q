@@ -1,0 +1,119 @@
+[1mdiff --git a/lib/core/constants/api_constants.dart b/lib/core/constants/api_constants.dart[m
+[1mindex fc79768..042c235 100644[m
+[1m--- a/lib/core/constants/api_constants.dart[m
+[1m+++ b/lib/core/constants/api_constants.dart[m
+[36m@@ -1,6 +1,6 @@[m
+ class ApiConstants {[m
+[31m-  //static const String baseUrl = "http://localhost:8080/api";[m
+[31m-  static const String baseUrl = "/api";[m
+[32m+[m[32m  static const String baseUrl = "http://localhost:8080/api";[m
+[32m+[m[32m  //static const String baseUrl = "/api";[m
+ [m
+   static const String auth = "$baseUrl/auth";[m
+   static const String vendedor = "$baseUrl/vendedor";[m
+[1mdiff --git a/lib/data/services/vendedor_service.dart b/lib/data/services/vendedor_service.dart[m
+[1mindex 61b109a..3e9eed5 100644[m
+[1m--- a/lib/data/services/vendedor_service.dart[m
+[1m+++ b/lib/data/services/vendedor_service.dart[m
+[36m@@ -164,4 +164,45 @@[m [mclass VendedorService {[m
+     print(response.body);[m
+     return null;[m
+   }[m
+[32m+[m
+[32m+[m[32m  /// Actualizar vendedor por ID (admin)[m
+[32m+[m[32m  Future<bool> updateById([m
+[32m+[m[32m    int id, {[m
+[32m+[m[32m    required String nombre,[m
+[32m+[m[32m    required String apellido,[m
+[32m+[m[32m    required String email,[m
+[32m+[m[32m    String? password,[m
+[32m+[m[32m  }) async {[m
+[32m+[m[32m    final url = Uri.parse("${ApiConstants.vendedor}/$id");[m
+[32m+[m
+[32m+[m[32m    final Map<String, dynamic> body = {[m
+[32m+[m[32m      "nombre": nombre,[m
+[32m+[m[32m      "apellido": apellido,[m
+[32m+[m[32m      "email": email,[m
+[32m+[m[32m    };[m
+[32m+[m[32m    if (password != null && password.trim().isNotEmpty) {[m
+[32m+[m[32m      body["password"] = password;[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    final response = await HttpClientJwt.put(url, body: jsonEncode(body));[m
+[32m+[m
+[32m+[m[32m    if (response.statusCode == 200) return true;[m
+[32m+[m
+[32m+[m[32m    print("❌ Error updateById: ${response.statusCode}");[m
+[32m+[m[32m    print(response.body);[m
+[32m+[m[32m    return false;[m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  /// Eliminar vendedor por ID (admin)[m
+[32m+[m[32m  Future<bool> deleteVendedor(int id) async {[m
+[32m+[m[32m    final url = Uri.parse("${ApiConstants.vendedor}/$id");[m
+[32m+[m
+[32m+[m[32m    final response = await HttpClientJwt.delete(url);[m
+[32m+[m
+[32m+[m[32m    if (response.statusCode == 200 || response.statusCode == 204) return true;[m
+[32m+[m
+[32m+[m[32m    print("❌ Error deleteVendedor: ${response.statusCode}");[m
+[32m+[m[32m    print(response.body);[m
+[32m+[m[32m    return false;[m
+[32m+[m[32m  }[m
+ }[m
+[1mdiff --git a/lib/presentation/pages/admin/config/config_vendedor_admin_page.dart b/lib/presentation/pages/admin/config/config_vendedor_admin_page.dart[m
+[1mindex 53fc3f3..0ff441e 100644[m
+[1m--- a/lib/presentation/pages/admin/config/config_vendedor_admin_page.dart[m
+[1m+++ b/lib/presentation/pages/admin/config/config_vendedor_admin_page.dart[m
+[36m@@ -4,6 +4,8 @@[m [mimport 'package:expositor_app/data/services/categoria_service.dart';[m
+ import 'package:expositor_app/data/services/cliente_service.dart';[m
+ import 'package:expositor_app/data/services/producto_service.dart';[m
+ import 'package:expositor_app/presentation/pages/admin/config/gestion/gestion_clientes_page.dart';[m
+[32m+[m[32mimport 'package:expositor_app/presentation/pages/admin/config/gestion/gestion_productos_page.dart';[m
+[32m+[m[32mimport 'package:expositor_app/presentation/pages/admin/config/gestion/gestion_vendedores_page.dart';[m
+ import 'package:expositor_app/presentation/pages/admin/product_admin_page.dart';[m
+ import 'package:file_picker/file_picker.dart';[m
+ import 'package:flutter/material.dart';[m
+[36m@@ -393,7 +395,7 @@[m [mclass _ConfigVendedorPageState extends State<ConfigVendedorPage> {[m
+   Future<void> _onTapProductos() async {[m
+     Navigator.push([m
+       context,[m
+[31m-      MaterialPageRoute(builder: (_) => const ProductAdminPage()),[m
+[32m+[m[32m      MaterialPageRoute(builder: (_) => const GestionProductosPage()),[m
+     );[m
+   }[m
+ [m
+[36m@@ -414,7 +416,7 @@[m [mclass _ConfigVendedorPageState extends State<ConfigVendedorPage> {[m
+   Future<void> _onTapVendedores() async {[m
+     Navigator.push([m
+       context,[m
+[31m-      MaterialPageRoute(builder: (_) => const ProductAdminPage()),[m
+[32m+[m[32m      MaterialPageRoute(builder: (_) => const GestionVendedoresPage()),[m
+     );[m
+   }[m
+ [m
+[36m@@ -506,7 +508,7 @@[m [mclass _ConfigVendedorPageState extends State<ConfigVendedorPage> {[m
+                   _SectionCard([m
+                     icon: Icons.receipt_long_outlined,[m
+                     iconText: 'P',[m
+[31m-                    title: 'Configuración de pedidos',[m
+[32m+[m[32m                    title: 'EmpresaNameX',[m
+                     subtitle:[m
+                         'Define el IVA y el descuento por defecto para pedidos nuevos.',[m
+                     badgeText: 'Admin',[m
+[1mdiff --git a/lib/presentation/pages/login/login_page.dart b/lib/presentation/pages/login/login_page.dart[m
+[1mindex 2475a4e..54b386b 100644[m
+[1m--- a/lib/presentation/pages/login/login_page.dart[m
+[1m+++ b/lib/presentation/pages/login/login_page.dart[m
+[36m@@ -50,7 +50,10 @@[m [mclass _LoginPageState extends State<LoginPage> {[m
+ [m
+     if (response != null && context.mounted) {[m
+       TextInput.finishAutofillContext();[m
+[31m-      await saveCredentials(emailController.text.trim(), passwordController.text.trim());[m
+[32m+[m[32m      await saveCredentials([m
+[32m+[m[32m        emailController.text.trim(),[m
+[32m+[m[32m        passwordController.text.trim(),[m
+[32m+[m[32m      );[m
+       Navigator.pushReplacement([m
+         context,[m
+         MaterialPageRoute([m

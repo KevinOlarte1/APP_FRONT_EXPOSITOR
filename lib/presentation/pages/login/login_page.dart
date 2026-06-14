@@ -50,7 +50,10 @@ class _LoginPageState extends State<LoginPage> {
 
     if (response != null && context.mounted) {
       TextInput.finishAutofillContext();
-      await saveCredentials(emailController.text.trim(), passwordController.text.trim());
+      await saveCredentials(
+        emailController.text.trim(),
+        passwordController.text.trim(),
+      );
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
